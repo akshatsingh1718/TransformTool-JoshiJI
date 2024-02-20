@@ -9,21 +9,31 @@ import platform
 def index(request):
     return render(request, "excel_app/index.html")
 
+
+def _open_file(file: str):
+    # Get the current operating system
+    current_os = platform.system()
+    print(file)
+    # Check the operating system and execute the appropriate command
+    if current_os == "Windows":
+        os.system(f"start {file}")  # Open file or folder on Windows
+    elif current_os == "Linux":
+        os.system(f"xdg-open {file}")  # Open file or folder on Linux
+    else:
+        print("Unsupported operating system")  # Handle unsupported
+
+def open_excel(request):
+    if request.method == "GET":
+        file_to_open = request.GET.get("file_to_open")
+        _open_file(os.path.join("transformed", file_to_open) )
+
+        return JsonResponse({"status": "OK", "code": 200})
+
+
 def open_file(request):
     if request.method == "GET":
         file_to_open = request.GET.get("file_to_open")
-
-        # Get the current operating system
-        current_os = platform.system()
-        print(file_to_open)
-        # Check the operating system and execute the appropriate command
-        if current_os == "Windows":
-            os.system(f"start {file_to_open}")  # Open file or folder on Windows
-        elif current_os == "Linux":
-            os.system(f"xdg-open {file_to_open}")  # Open file or folder on Linux
-        else:
-            print("Unsupported operating system")  # Handle unsupported
-
+        _open_file(file_to_open)
 
         return JsonResponse({"status": "OK", "code": 200})
 

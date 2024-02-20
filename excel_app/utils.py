@@ -199,6 +199,7 @@ class TransformExcelSale(BaseTransformExcel):
         cls.file_save_dir = "transformed"
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.party_gst_index = config["party_gst_index"]
+        cls.column_to_idx: dict = config['column_to_idx']
         
         # changes every time
         cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
@@ -229,6 +230,7 @@ class TransformExcelSale(BaseTransformExcel):
                     },
                     "Reg Type" : "unregistered consumer" if gst_no == 'nan' else "regular",
                     "Product's Name": f"Medicine {gst_percentage}%",
+                    "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']]).split("-")[0].strip(),
                     "Bill No." : bill_no,
                     "Inv Date": bill_date,
                     "GST%": gst_percentage,

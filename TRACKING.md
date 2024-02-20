@@ -13,6 +13,7 @@
 4. [x] State Column =  {Purchase} transform | Link:https://www.zoho.com/in/books/kb/gst/valid-state-codes-list.html
     - Get the first 2 char of gst and lookup in valid-states-code-list and add the state name to state column
     - if unregistered then state="UK"
-5. 3004 to hsn| {Sale, Purchase} transform3004
-6. remove 5 char from party name. Purchase
-7. Sale party name 2x times appearings
+5. [x] 3004 to hsn| {Sale, Purchase} transform3004
+6. [x] remove 5 char from party name. Purchase
+7. [x] Sale party name 2x times appearings.
+8. [x] In sale, remove double name using "-" 

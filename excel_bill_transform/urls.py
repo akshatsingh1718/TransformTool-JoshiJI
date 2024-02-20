@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('upload/', views.upload_excel, name='upload_excel'),
     path('open_file/', views.open_file, name='open_file'),
+    path('open_excel/', views.open_excel, name='open_excel'),
     path('', views.index, name='index'),
 ]
 

@@ -34,9 +34,12 @@
     { "gst_percentage": 18, "target_column_idx": 10 }
   ],
   "target_columns_index": [
-    { "column": "Inv No.", "target_column_idx": 0 },
-    { "column": "Party/Cash", "target_column_idx": 1 }
+    { "column": "Inv No.", "target_column_idx": 0 }
   ],
+  "column_to_idx" : {
+    "party_gst_index": 2,
+    "Party/Cash" : 1
+  },
   "default_output_row": {
     "State": "Uttarakhand",
     "Place of Supply": "Uttarakhand",

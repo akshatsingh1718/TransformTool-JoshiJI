@@ -33,7 +33,7 @@
             {{data.xl_file_name}}
           </h3>
           <button
-            onclick="myFunction('{{data.xl_save_path}}')"
+            onclick="openExcel('{{data.xl_file_name}}')"
             class="text-white bg-indigo-500 border-0 py-2 px-6 mt-3 w-full"
           >
             Open Excel
@@ -67,6 +67,24 @@
 
 {% block script %}
 <script>
+
+  function openExcel(file_to_open) {
+    $.ajax({
+      type: "GET",
+      url: "/open_excel/",
+      data: {
+        file_to_open: file_to_open,
+      },
+      success: function (response) {
+        // Handle the response from the Django view
+        console.log(response);
+      },
+      error: function (xhr, errmsg, err) {
+        console.log(xhr.status + ": " + xhr.responseText);
+      },
+    });
+  }
+
   function myFunction(file_to_open) {
     $.ajax({
       type: "GET",
