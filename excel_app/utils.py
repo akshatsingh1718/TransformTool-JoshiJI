@@ -15,7 +15,7 @@ class BaseTransformExcel:
         return None
     
     @staticmethod
-    def get_filename_with_datetime(prefix="", suffix="", ext=".xlsx"):
+    def get_filename_with_datetime(prefix="", suffix="", ext="xlsx"):
         # Get the current date and time
         current_datetime = datetime.now()
         # Format the date and time as desired
@@ -48,7 +48,8 @@ class TransformExcelPurchase(BaseTransformExcel):
         cls.file_save_dir = "transformed"
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.party_gst_index = config["party_gst_index"]
-        cls.gst_mapping_xl_path = config["gst_mapping_xl_path"]
+        cls.gst_mapping_xl_path: str = config["gst_mapping_xl_path"]
+        cls.column_to_idx: dict = config['column_to_idx']
 
 
     def get_gst_state(cls, gst_code: str)->str:
@@ -104,7 +105,8 @@ class TransformExcelPurchase(BaseTransformExcel):
                     "Party's GST" : "" if gst_no == "nan" else gst_no,
                     "Reg Type" : "unregistered consumer" if gst_no == 'nan' else "regular",
                     "Product's Name": f"Medicine {gst_percentage}%",
-                    "State" : state,
+                    "State" : "Uttrakhand" if gst_no == "nan" else state,
+                    "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']])[5:].strip(),
                     "GST%": gst_percentage,
                     "Amount": amount,
                     "CGST %": cgst_sgst_per,
@@ -179,8 +181,8 @@ class TransformExcelPurchase(BaseTransformExcel):
             print(f"File saved to: {xl_save_path}")
             writer.close()
         return dict(
-            xl_save_path=os.path.abspath(xl_save_path),
-            save_dir=os.path.abspath(cls.file_save_dir),
+            xl_save_path=xl_save_path,
+            save_dir=cls.file_save_dir,
             xl_file_name = filename
 
         )
@@ -322,8 +324,8 @@ class TransformExcelSale(BaseTransformExcel):
             writer.close()
 
         return dict(
-            xl_save_path=os.path.abspath(xl_save_path),
-            save_dir=os.path.abspath(cls.file_save_dir),
+            xl_save_path=xl_save_path,
+            save_dir=cls.file_save_dir,
             xl_file_name = filename
         )
 
@@ -347,7 +349,7 @@ class TransformStockExcel(BaseTransformExcel):
                 # if header found then get stock name from prv cell
                 stock_name = df.iloc[index - 1, 0]
                 # also append the next cell data to the result which is opening balance
-                result.append([len(result)+1, stock_name, "", df.iloc[index + 1, 1], df.iloc[index + 1, 2], ""])
+                result.append([len(result)+1, stock_name, "", df.iloc[index + 1, 1], df.iloc[index + 1, 3], ""])
             # if the cell is not null and has int data at first
             elif pd.notnull(row[0]) and isinstance(row[0], int) and str(row[2]) != "nan":
 
@@ -367,8 +369,8 @@ class TransformStockExcel(BaseTransformExcel):
             df.to_excel(xl_save_path, index=False)
 
         return dict(
-            xl_save_path=os.path.abspath(xl_save_path),
-            save_dir=os.path.abspath(cls.file_save_dir),
+            xl_save_path=xl_save_path,
+            save_dir=cls.file_save_dir,
             xl_file_name = filename
         )
 

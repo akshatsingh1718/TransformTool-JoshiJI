@@ -1,8 +1,6 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect, JsonResponse
-from .models import ExcelFile
 import pandas as pd
-from .forms import ExcelUploadForm
 from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel,BaseTransformExcel
 import webbrowser
 import os
@@ -11,16 +9,13 @@ import platform
 def index(request):
     return render(request, "excel_app/index.html")
 
-
-
-
-
 def open_file(request):
     if request.method == "GET":
         file_to_open = request.GET.get("file_to_open")
 
         # Get the current operating system
         current_os = platform.system()
+        print(file_to_open)
         # Check the operating system and execute the appropriate command
         if current_os == "Windows":
             os.system(f"start {file_to_open}")  # Open file or folder on Windows
