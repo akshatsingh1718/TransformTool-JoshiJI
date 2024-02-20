@@ -1,0 +1,5 @@
+@echo off
+echo Starting the Django server...
+python manage.py runserver
+explorer "http://127.0.0.1:8000/"
+echo Django server has been started.
