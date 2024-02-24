@@ -103,7 +103,7 @@ class TransformExcelPurchase(BaseTransformExcel):
                         for i in cls.target_columns_index
                     },
                     "Party's GST" : "" if gst_no == "nan" else gst_no,
-                    "Reg Type" : "unregistered consumer" if gst_no == 'nan' else "regular",
+                    "Reg Type" : "unregistered/consumer" if gst_no == 'nan' else "regular",
                     "Product's Name": f"Medicine {gst_percentage}%",
                     "State" : "Uttrakhand" if gst_no == "nan" else state,
                     "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']])[5:].strip(),
@@ -227,7 +227,7 @@ class TransformExcelSale(BaseTransformExcel):
                         i["column"]: str(row.iloc[i["target_column_idx"]]).strip()
                         for i in cls.target_columns_index
                     },
-                    "Reg Type" : "unregistered consumer" if gst_no == 'nan' else "regular",
+                    "Reg Type" : "unregistered/consumer" if gst_no == 'nan' else "regular",
                     "Product's Name": f"Medicine {gst_percentage}%",
                     "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']]).split("-")[0].strip(),
                     "Bill No." : bill_no,
@@ -348,7 +348,7 @@ class TransformStockExcel(BaseTransformExcel):
             # if the header found
             if row[0] == "Sr." and row[1] == "Transaction Date" and row[2] == "Transaction Type" and row[3] == "Amount" and row[4] == "Units":
                 # if header found then get stock name from prv cell
-                stock_name = str(df.iloc[index - 1, 0]).split("-")[0]
+                stock_name = "".join(str(df.iloc[index - 1, 0]).split("-")[:-1])
                 # also append the next cell data to the result which is opening balance
                 result.append([len(result)+1, stock_name, "", df.iloc[index + 1, 1], df.iloc[index + 1, 3], ""])
             # if the cell is not null and has int data at first
@@ -415,7 +415,7 @@ class TransformExcelGST(BaseTransformExcel):
                     for tg in cls.target_columns_index
                 },
                 "Bill No." : bill_no,
-                "Reg Type" : "unregistered consumer",
+                "Reg Type" : "unregistered/consumer",
                 "Product's Name": f"Medicine {gst_percentage}%",
                 "GST%": gst_percentage,
                 "Amount": amount,
