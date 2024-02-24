@@ -1,0 +1,47 @@
+{
+  "output_columns": [
+    "Bill No.",
+    "Inv No.",
+    "Inv Date",
+    "Party/Cash",
+    "Product's Name",
+    "HSN Code",
+    "Qty",
+    "Rate",
+    "GST%",
+    "Amount",
+    "CGST %",
+    "CGST Amt",
+    "SGST %",
+    "SGST Amt",
+    "IGST Amt",
+    "Discount %",
+    "Total",
+    "State",
+    "Party's GST",
+    "Reg Type",
+    "Place of Supply",
+    "Country",
+    "Consignee State",
+    "Consignee GST"
+  ],
+  "columns_to_sum": ["Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"],
+  "perfix_for_totals": { "column": "Party/Cash", "label": "Total" },
+  "target_columns_index" : ["Party/Cash", "Inv No.", "Inv Date", "HSN Code"],
+  "column_to_idx" : {
+    "Party/Cash" : 1,
+    "Inv No." : 4,
+    "Inv Date" : 3,
+    "HSN Code" : 8,
+    "SGST %" : 12,
+    "IGST %" : 16,
+    "Amount" : 11
+  },
+  "default_output_row": {
+    "State": "Uttarakhand",
+    "Place of Supply": "Uttarakhand",
+    "Country": "India",
+    "Consignee State": "Uttarakhand",
+    "discount": 0.0
+  }
+}

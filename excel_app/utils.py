@@ -206,7 +206,6 @@ class TransformExcelSale(BaseTransformExcel):
         cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
         cls.calculate_igst = kwargs.get('calculate_igst', False)
 
-
     def get_transformed_rows(cls, row, bill_date: str,  bill_no: str, calculate_igst=False):
         new_rows = []
         gst_no = str(row.iloc[cls.party_gst_index])
@@ -349,7 +348,7 @@ class TransformStockExcel(BaseTransformExcel):
             # if the header found
             if row[0] == "Sr." and row[1] == "Transaction Date" and row[2] == "Transaction Type" and row[3] == "Amount" and row[4] == "Units":
                 # if header found then get stock name from prv cell
-                stock_name = df.iloc[index - 1, 0]
+                stock_name = str(df.iloc[index - 1, 0]).split("-")[0]
                 # also append the next cell data to the result which is opening balance
                 result.append([len(result)+1, stock_name, "", df.iloc[index + 1, 1], df.iloc[index + 1, 3], ""])
             # if the cell is not null and has int data at first
@@ -369,6 +368,145 @@ class TransformStockExcel(BaseTransformExcel):
             filename = cls.get_filename_with_datetime(prefix="Stock_")
             xl_save_path = os.path.join(cls.file_save_dir, filename)
             df.to_excel(xl_save_path, index=False)
+
+        return dict(
+            xl_save_path=xl_save_path,
+            save_dir=cls.file_save_dir,
+            xl_file_name = filename
+        )
+
+
+
+class TransformExcelGST(BaseTransformExcel):
+
+    def __init__(cls, config: dict, *args, **kwargs) -> None:
+        cls.file_save_dir = "transformed"
+        cls.output_columns = config["output_columns"]
+        cls.default_output_row = config["default_output_row"]
+        cls.columns_to_sum = config["columns_to_sum"]
+        cls.perfix_for_totals = config["perfix_for_totals"]
+        cls.column_to_idx: dict = config['column_to_idx']
+        cls.target_columns_index:list = config['target_columns_index']
+        
+        # changes every time
+        cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
+        cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
+        cls.calculate_igst = kwargs.get('calculate_igst', False)
+
+    def get_transformed_rows(cls, row, bill_no: str):
+        new_rows = []
+
+        cgst_sgst_per = int(row[cls.column_to_idx['SGST %']])
+        igst_per = int(row[cls.column_to_idx['IGST %']])
+        gst_percentage = cgst_sgst_per * 2
+        amount = float(row.iloc[cls.column_to_idx['Amount']])
+
+        if amount == 0.0:
+            return []
+
+        cgst_sgst_amt =  round(amount * cgst_sgst_per / 100, 2)
+        igst_amt =  round(amount * igst_per / 100, 2)
+        discount = 0.0
+        total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
+        new_row = cls.get_default_row_format(
+            {
+                **{
+                    tg: str(row.iloc[  cls.column_to_idx[tg]  ]).strip()
+                    for tg in cls.target_columns_index
+                },
+                "Bill No." : bill_no,
+                "Reg Type" : "unregistered consumer",
+                "Product's Name": f"Medicine {gst_percentage}%",
+                "GST%": gst_percentage,
+                "Amount": amount,
+                "CGST %": cgst_sgst_per,
+                "CGST Amt": cgst_sgst_amt,
+                "SGST %": cgst_sgst_per,
+                "SGST Amt": cgst_sgst_amt,
+                "IGST Amt": igst_amt,
+                "Discount %": discount,
+                "Total": total_amt,
+            }
+        )
+        new_rows.append(copy.deepcopy(new_row))
+
+        return new_rows
+
+    def transform(cls, df: pd.DataFrame, save=True):
+        # drop the 1st empty column
+        df = df.iloc[: , 1:]
+
+        rows_to_df = []
+        bill_counter = cls.bill_no_suffix_counter - 1
+        last_row = None
+
+        # Iterate over rows
+        for _, row in df.iterrows():
+            # if gross total reached then break the loop
+            if str(row.iloc[1]).strip() == "Gross Total": break
+
+            # if cell-0 is nan and we have last row data
+            if str(row.iloc[0]).strip() == "nan" and last_row is not None:
+                for copy_idx in [1, 2, 3, 4, 5, 6, 7]:
+                    row.iloc[copy_idx] = last_row.iloc[copy_idx]
+
+            # if the row does not match the following format= "<digit><dot>"
+            elif (not str(row.iloc[0]).split(".")[0].strip().isdigit()):
+                continue
+            else:
+                # digit case found
+                bill_counter += 1
+                last_row= copy.deepcopy(row)
+
+            new_tranformed_rows = cls.get_transformed_rows(
+                row, 
+                bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}",
+                )
+            
+            # if new rows added then only increase the bill counter
+            # there may be case where no rows were added because amount is 0
+            if len(new_tranformed_rows) > 0:
+                rows_to_df += new_tranformed_rows
+
+    
+        filename = cls.get_filename_with_datetime(prefix="GST_")
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
+
+        result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+
+        # Get the xlsxwriter objects from the dataframe writer object.
+        worksheet = writer.sheets["Sheet1"]
+
+        no_of_row = worksheet.dim_rowmax
+        for col_to_sum in cls.columns_to_sum:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(col_to_sum) + 1
+            )  # offset of 1 for index to pos
+
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
+
+            worksheet.write_formula(index_of_sheet, formula)
+
+        if len(cls.columns_to_sum) > 0:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
+            )  # offset of 1 for index to pos
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
+
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            writer.close()
 
         return dict(
             xl_save_path=xl_save_path,
@@ -419,6 +557,23 @@ def check_for_sale():
 
     obj.transform_bill(get_df())
 
+def check_for_gst():
+    default_config = TransformExcelGST.read_config(
+        os.path.join("excel_app", "config", "gst_config.json")
+    )
+    bill_no_prefix = "JPS/23/24/"
+    bill_no_suffix_counter = 1546
+
+    obj = TransformExcelGST( default_config, bill_no_prefix=bill_no_prefix, bill_no_suffix_counter= bill_no_suffix_counter)
+
+    def get_df():
+        sale_path = "../data/gst2.xls"
+        df = pd.read_excel(
+            sale_path, header=None
+        )
+        return df
+
+    obj.transform(get_df())
 
 if __name__ == "__main__":
-    check_for_stock()
+    check_for_gst()

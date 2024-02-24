@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect, JsonResponse
 import pandas as pd
-from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel,BaseTransformExcel
+from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, BaseTransformExcel
 import webbrowser
 import os
 import platform
@@ -72,6 +72,20 @@ def upload_excel(request):
         elif change_format == "transform_stock":
             transform = TransformStockExcel({})
             heading = "Stock Transformation"
+
+        elif change_format == "transform_gst":
+            default_config = TransformExcelGST.read_config(
+                os.path.join("excel_app", "config", "gst_config.json")
+            )
+            bill_no_prefix = request.POST["bill_no_prefix"]
+            bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
+
+            transform = TransformExcelGST(
+                default_config,
+                bill_no_prefix=bill_no_prefix,
+                bill_no_suffix_counter=bill_no_suffix_counter,
+            )
+            heading = "GST Transformation"
 
 
         data = transform.transform(df, save=True)
