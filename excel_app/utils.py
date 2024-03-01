@@ -39,26 +39,66 @@ class BaseTransformExcel:
 
         return row_dict
     
+    def get(cls, row, column: str):
+        return row[cls.column_to_idx[column] ]
+    
+    @staticmethod
+    def strip_column_names(df):
+        """
+        Strips leading and trailing whitespaces from column names in a DataFrame.
 
-class TransformExcelSortByColumn(BaseTransformExcel):
+        Parameters:
+        df (DataFrame): The pandas DataFrame.
 
-    def __init__(cls, columns: str, filename_prefix = ""):
+        Returns:
+        DataFrame: The DataFrame with stripped column names.
+        """
+        df.columns = [col.strip() for col in df.columns]
+        return df
+    
+class IpdOpdTransfromation(BaseTransformExcel):
+
+    def __init__(cls, columns: str, _for: str, filename_prefix = ""):
         cls.columns = columns
         cls.filename_prefix = filename_prefix
         cls.file_save_dir = "transformed"
+        cls._for = _for
+
+        # IPD
+        # narration = f"Bill no: Bill No + Patient nane + TPA"
+
+        # OPD = narration = f"Bill no:" +  Bill No + Patient name
 
     def transform(cls, df: pd.DataFrame, save= True) -> pd.DataFrame:
-        """
-        Sorts the DataFrame rows based on the values in the specified columns.
+        df = cls.strip_column_names(df)
 
-        Parameters:
-        df (DataFrame): The DataFrame to be sorted.
-        columns (list of str): List of column names to sort the DataFrame by.
+        df = df.sort_values(by=cls.columns)
 
-        Returns:
-        DataFrame: The sorted DataFrame.
-        """
-        result_df = df.sort_values(by=cls.columns)
+        ## change date time fileds format
+        # List to store the names of datetime columns
+        datetime_columns = []
+        # Identify datetime columns
+        for column in df.columns:
+            if pd.api.types.is_datetime64_any_dtype(df[column]):
+                datetime_columns.append(column)
+        # Convert datetime columns to date format="%d/%m/%Y"
+        for column in datetime_columns:
+            df[column] = df[column].dt.strftime("%d/%m/%Y")
+        
+
+        def concat_cols(r):
+            if cls._for == "ipd":
+                try:
+                    return  f"Bill No: {int(r['Bill No'])} {r['Patient Name']} {r['TPA']}"
+                except Exception as e:
+                    return ""
+            try:   
+                return f"Bill No: {int(r['Bill No'])} {r['Patient Name']}"
+            except Exception as e:
+                return ""
+        
+        # concat columns
+        df['Narration'] = df.apply(concat_cols, axis= 1)
 
         filename = cls.get_filename_with_datetime(prefix= f"{cls.filename_prefix}_")
         xl_save_path = os.path.join(cls.file_save_dir, filename)
@@ -72,7 +112,7 @@ class TransformExcelSortByColumn(BaseTransformExcel):
         if save:
             print(f"File saved to: {xl_save_path}")
             # Convert the dataframe to an XlsxWriter Excel object.
-            result_df.to_excel(xl_save_path, sheet_name="Sheet1", index=False)
+            df.to_excel(xl_save_path, sheet_name="Sheet1", index=False)
         return dict(
             xl_save_path=xl_save_path,
             save_dir=cls.file_save_dir,
@@ -425,8 +465,9 @@ class TransformStockExcel(BaseTransformExcel):
         )
 
 
-
 class TransformExcelGST(BaseTransformExcel):
+    NAME = "GSTR1 With Qty"
+    CONFIG = "gst_config.json"
 
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
@@ -441,6 +482,28 @@ class TransformExcelGST(BaseTransformExcel):
         cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
         cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
         cls.calculate_igst = kwargs.get('calculate_igst', False)
+        
+        # Mapping file 
+        cls._mapping_df = kwargs.get("mapping_df", None)
+        cls.mapping_sheetname = config["mapping_sheetname"]
+
+    def transform_mapping(cls):
+        df = cls._mapping_df.iloc[7:, 1:]
+        # Set the headers to be the values from the first row
+        new_headers = df.iloc[0]
+        df.columns = new_headers
+
+        # Reset the index
+        df.reset_index(drop=True, inplace=True)
+
+        cls._mapping_df = df
+
+    def is_present_in_mapping(cls, value_to_find, column: str = "Bill No." ):
+        if value_to_find in cls._mapping_df[column].values:
+            index = cls._mapping_df[cls._mapping_df[column] == value_to_find].index[0]
+            if float(cls._mapping_df.at[index, "INDIAN BANK"]) > 0.0:
+                return True
+        return False
 
     def get_transformed_rows(cls, row, bill_no: str):
         new_rows = []
@@ -457,6 +520,7 @@ class TransformExcelGST(BaseTransformExcel):
         igst_amt =  round(amount * igst_per / 100, 2)
         discount = 0.0
         total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
+        party_cash =  "SWIP CARD" if cls.is_present_in_mapping(value_to_find= cls.get(row, "Inv No.")) else cls.get(row, "Party/Cash")
         new_row = cls.get_default_row_format(
             {
                 **{
@@ -464,6 +528,7 @@ class TransformExcelGST(BaseTransformExcel):
                     for tg in cls.target_columns_index
                 },
                 "Bill No." : bill_no,
+                "Party/Cash" : party_cash, 
                 "Qty" : math.ceil(row[cls.column_to_idx['Qty']]),
                 "Reg Type" : "unregistered/consumer",
                 "Product's Name": f"Medicine {gst_percentage}%",
@@ -482,9 +547,14 @@ class TransformExcelGST(BaseTransformExcel):
 
         return new_rows
 
+
+
     def transform(cls, df: pd.DataFrame, save=True):
         # drop the 1st empty column
+        # drop the 1st empty column
         df = df.iloc[: , 1:]
+
+        cls.transform_mapping()
 
         rows_to_df = []
         bill_counter = cls.bill_no_suffix_counter - 1
@@ -493,7 +563,8 @@ class TransformExcelGST(BaseTransformExcel):
         # Iterate over rows
         for _, row in df.iterrows():
             # if gross total reached then break the loop
-            if str(row.iloc[1]).strip() == "Gross Total": break
+
+            if str(row.iloc[1]).strip() == "Gross Total":break
 
             # if cell-0 is nan and we have last row data
             if str(row.iloc[0]).strip() == "nan" and last_row is not None:
@@ -513,13 +584,13 @@ class TransformExcelGST(BaseTransformExcel):
                 bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}",
                 )
             
+            
             # if new rows added then only increase the bill counter
             # there may be case where no rows were added because amount is 0
             if len(new_tranformed_rows) > 0:
                 rows_to_df += new_tranformed_rows
 
-    
-        filename = cls.get_filename_with_datetime(prefix="GST_")
+        filename = cls.get_filename_with_datetime(prefix="GSTR1_W_Qty_")
         xl_save_path = os.path.join(cls.file_save_dir, filename)
 
         # if dir not exist then create one
@@ -566,6 +637,7 @@ class TransformExcelGST(BaseTransformExcel):
 
 
 class TransformExcelJJOnly(BaseTransformExcel):
+    NAME = "JJ/Only"
 
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         # Product's Name: "Article Description" + " " + "EAN Number"
@@ -584,20 +656,15 @@ class TransformExcelJJOnly(BaseTransformExcel):
         cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
         cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
 
-    def get(cls, row, column: str):
-        return row[cls.column_to_idx[column] ]
+
 
     def get_transformed_rows(cls, row, inv_no: str, calculate_igst=False):
         new_rows = []
         gst_percentage = int(cls.get(row, "GST %"))
-        rate = float(cls.get(row, "Rate"))
-        try:
-            qty = math.ceil(cls.get(row, "Qty"))
-        except Exception as e:
-            print(cls.get(row, "Qty"))
-        amount = rate * qty
+        rate = round(float(cls.get(row, "Rate")), 2)
+        qty = math.ceil(cls.get(row, "Qty"))
+        amount = round(rate * qty, 2)
         discount = 0.0
-
 
         cgst_sgst_per = gst_percentage / 2
 
@@ -640,7 +707,7 @@ class TransformExcelJJOnly(BaseTransformExcel):
         rows_to_df = []
         bill_counter = cls.bill_no_suffix_counter
 
-        # Removing the first column and first row
+        # Removing the first 2 rows and first col
         df = df.iloc[2:, 1:]
         df.reset_index(drop=True, inplace=True)
 

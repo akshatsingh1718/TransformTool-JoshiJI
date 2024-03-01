@@ -24,4 +24,11 @@
 - In GST: converted gst_percentage to int.
 - Implemented jj/only.
 - implemented IPD & OPD.
-- Chaned name of Sale app= GSTR1; Purchase App = GSTR2
+- Chaned name of Sale app= GSTR1; Purchase App = GSTR2.
+
+## TODO
+
+- [x] sale transformation name = GST Sale without qty 
+- [x] gst transformation name = GSTR1 with qty
+- [x] GSTR1 with qty transformation : Party = Swip card if inv no in mapping file
+- [x] Narration column in IPD and OPD.

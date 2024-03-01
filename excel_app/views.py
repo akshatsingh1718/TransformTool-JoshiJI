@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect, JsonResponse
 import pandas as pd
-from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, TransformExcelJJOnly, TransformExcelSortByColumn, BaseTransformExcel
+from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, TransformExcelJJOnly, IpdOpdTransfromation, BaseTransformExcel
 import os
 import platform
 
@@ -73,6 +73,8 @@ def upload_excel(request):
             heading = "Stock Transformation"
 
         elif change_format == "transform_gst":
+            mapping_df = pd.read_excel(request.FILES["mapping_file"])
+
             default_config = TransformExcelGST.read_config(
                 os.path.join("excel_app", "config", "gst_config.json")
             )
@@ -83,6 +85,7 @@ def upload_excel(request):
                 default_config,
                 bill_no_prefix=bill_no_prefix,
                 bill_no_suffix_counter=bill_no_suffix_counter,
+                mapping_df = mapping_df
             )
             heading = "GST Transformation"
 
@@ -101,10 +104,10 @@ def upload_excel(request):
             heading = "JJ/Only Transformation"
 
         elif change_format == "transform_ipd":
-            transform = TransformExcelSortByColumn(columns="TPA", filename_prefix= "IPD")
+            transform = IpdOpdTransfromation(columns="TPA", filename_prefix= "IPD", _for ="ipd")
             heading = "IPD Transformation"
         elif change_format == "transform_opd":
-            transform = TransformExcelSortByColumn(columns="Payment Mode", filename_prefix= "OPD")
+            transform = IpdOpdTransfromation(columns="Payment Mode", filename_prefix= "OPD", _for="opd")
             heading = "OPD Transformation"
 
 

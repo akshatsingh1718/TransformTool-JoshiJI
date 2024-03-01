@@ -27,7 +27,7 @@
   ],
   "columns_to_sum": ["Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"],
   "perfix_for_totals": { "column": "Party/Cash", "label": "Total" },
-  "target_columns_index" : ["Party/Cash", "Inv No.", "Inv Date", "HSN Code"],
+  "target_columns_index" : ["Inv No.", "Inv Date", "HSN Code"],
   "column_to_idx" : {
     "Party/Cash" : 1,
     "Inv No." : 4,
@@ -44,5 +44,6 @@
     "Country": "India",
     "Consignee State": "Uttarakhand",
     "discount": 0.0
-  }
+  },
+  "mapping_sheetname" : "CREDIT CARD"
 }
