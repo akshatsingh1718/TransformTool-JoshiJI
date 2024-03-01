@@ -1,8 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect, JsonResponse
 import pandas as pd
-from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, BaseTransformExcel
-import webbrowser
+from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, TransformExcelJJOnly, TransformExcelSortByColumn, BaseTransformExcel
 import os
 import platform
 
@@ -58,7 +57,7 @@ def upload_excel(request):
                 bill_no_suffix_counter=bill_no_suffix_counter,
                 calculate_igst=calculate_igst,
             )
-            heading = "Sale Transformation"
+            heading = "GSTR1 Transformation"
         elif change_format == "transform_purchase":
             global_constants = BaseTransformExcel.read_config(
                 os.path.join("excel_app", "config", "constants.json")
@@ -67,7 +66,7 @@ def upload_excel(request):
                 os.path.join("excel_app", "config", "purchase_config.json")
             )
             transform = TransformExcelPurchase({**default_config, "gst_mapping_xl_path" : global_constants['purchase_gst_codes_mapping_xl_path']})
-            heading = "Purchase Transformation"
+            heading = "GSTR2 Transformation"
             
         elif change_format == "transform_stock":
             transform = TransformStockExcel({})
@@ -86,6 +85,27 @@ def upload_excel(request):
                 bill_no_suffix_counter=bill_no_suffix_counter,
             )
             heading = "GST Transformation"
+
+        elif change_format == "transform_jj-only":
+            default_config = TransformExcelSale.read_config(
+                os.path.join("excel_app", "config", "jj-only_config.json")
+            )
+            bill_no_prefix = request.POST["bill_no_prefix"]
+            bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
+
+            transform = TransformExcelJJOnly(
+                default_config,
+                bill_no_prefix=bill_no_prefix,
+                bill_no_suffix_counter=bill_no_suffix_counter,
+            )
+            heading = "JJ/Only Transformation"
+
+        elif change_format == "transform_ipd":
+            transform = TransformExcelSortByColumn(columns="TPA", filename_prefix= "IPD")
+            heading = "IPD Transformation"
+        elif change_format == "transform_opd":
+            transform = TransformExcelSortByColumn(columns="Payment Mode", filename_prefix= "OPD")
+            heading = "OPD Transformation"
 
 
         data = transform.transform(df, save=True)

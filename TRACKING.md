@@ -17,3 +17,11 @@
 6. [x] remove 5 char from party name. Purchase
 7. [x] Sale party name 2x times appearings.
 8. [x] In sale, remove double name using "-" 
+
+
+# Work for 1 Mar 24
+- In GST: changed the Qty to use ceil values.
+- In GST: converted gst_percentage to int.
+- Implemented jj/only.
+- implemented IPD & OPD.
+- Chaned name of Sale app= GSTR1; Purchase App = GSTR2

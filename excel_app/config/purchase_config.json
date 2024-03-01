@@ -1,5 +1,6 @@
 {
   "output_columns": [
+    "Bill No.",
     "Inv No.",
     "Inv Date",
     "Party/Cash",
