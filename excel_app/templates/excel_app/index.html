@@ -145,7 +145,7 @@
               </svg>
             </div>
             <h2 class="text-gray-900 text-lg title-font font-medium">
-              Stock Transformation
+              Mutual Fund Transformation
             </h2>
           </div>
 
@@ -361,6 +361,88 @@
           </div>
       </div>
       <!-- OPD ends here-->
+
+      <!-- GST 2B Excel starts here-->
+      <div class="p-4 sm:w-full md:w-1/2 lg:w-1/3">
+        <div class="flex rounded-lg h-full bg-gray-100 p-8 flex-col">
+          <div class="flex items-center mb-3">
+            
+            <div
+              class="w-8 h-8 mr-3 inline-flex items-center justify-center rounded-full bg-indigo-500 text-white flex-shrink-0"
+              >
+            
+              <svg
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+              >
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+              </svg>
+            </div>
+            <h2 class="text-gray-900 text-lg title-font font-medium">
+              GST 2B Excel Transformation
+            </h2>
+          </div>
+
+            <form action="{% url "upload_excel" %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file"
+                        title="Upload excel file"
+                        name="excel_file"
+                        required="required" multiple>
+                <input type="hidden" value="transform_gst2b" name="change_format" />
+                <button class="text-white bg-indigo-500 border-0 py-2 px-6 mt-3 w-full">
+                  Transform
+                </button>
+            </form>
+          </div>
+      </div>
+      <!-- GST 2B Excel ends here-->
+
+      <!-- EchsDue starts here-->
+      <div class="p-4 sm:w-full md:w-1/2 lg:w-1/3">
+        <div class="flex rounded-lg h-full bg-gray-100 p-8 flex-col">
+          <div class="flex items-center mb-3">
+            
+            <div
+              class="w-8 h-8 mr-3 inline-flex items-center justify-center rounded-full bg-indigo-500 text-white flex-shrink-0"
+              >
+            
+              <svg
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+              >
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+              </svg>
+            </div>
+            <h2 class="text-gray-900 text-lg title-font font-medium">
+              ECHS DUE Transformation
+            </h2>
+          </div>
+
+            <form action="{% url "upload_excel" %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file"
+                        title="Upload excel file"
+                        name="excel_file"
+                        required="required" multiple>
+                <input type="hidden" value="transform_EchsDue" name="change_format" />
+                <button class="text-white bg-indigo-500 border-0 py-2 px-6 mt-3 w-full">
+                  Transform
+                </button>
+            </form>
+          </div>
+      </div>
+      <!-- EchsDue ends here-->
 
     </div>
   </div>

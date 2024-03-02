@@ -20,15 +20,16 @@
 
 
 # Work for 1 Mar 24
-- In GST: changed the Qty to use ceil values.
-- In GST: converted gst_percentage to int.
-- Implemented jj/only.
-- implemented IPD & OPD.
-- Chaned name of Sale app= GSTR1; Purchase App = GSTR2.
-
-## TODO
-
+- [x] In GST: changed the Qty to use ceil values.
+- [x] In GST: converted gst_percentage to int.
+- [x] Implemented jj/only.
+- [x] implemented IPD & OPD.
+- [x] Chaned name of Sale app= GSTR1; Purchase App = GSTR2.
 - [x] sale transformation name = GST Sale without qty 
 - [x] gst transformation name = GSTR1 with qty
 - [x] GSTR1 with qty transformation : Party = Swip card if inv no in mapping file
 - [x] Narration column in IPD and OPD.
+- [x] implemented GST 2B Excels
+- [x] Check missing row; in stock; change name to mutual fund. (Solved: stock.split("-")[:-1] is giving blank for non "-" texts )
+- [x] ECHS DUE.
+- [x] IPD/OPD remove blank rows

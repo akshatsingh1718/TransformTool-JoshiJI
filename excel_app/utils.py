@@ -5,7 +5,11 @@ from datetime import datetime
 import os
 import json
 import math
+from typing import List
 
+import warnings
+
+warnings.simplefilter("ignore")
 
 
 class BaseTransformExcel:
@@ -16,7 +20,7 @@ class BaseTransformExcel:
             with open(path, "r") as f:
                 return json.load(f)
         return None
-    
+
     @staticmethod
     def get_filename_with_datetime(prefix="", suffix="", ext="xlsx"):
         # Get the current date and time
@@ -38,10 +42,10 @@ class BaseTransformExcel:
                 row_dict[col] = ""
 
         return row_dict
-    
+
     def get(cls, row, column: str):
-        return row[cls.column_to_idx[column] ]
-    
+        return row[cls.column_to_idx[column]]
+
     @staticmethod
     def strip_column_names(df):
         """
@@ -55,21 +59,98 @@ class BaseTransformExcel:
         """
         df.columns = [col.strip() for col in df.columns]
         return df
-    
+
+
+class EchsDueTransfromation(BaseTransformExcel):
+    NAME = "ECHS DUE"
+    CONFIG = "echs_due-config.json"
+
+    def __init__(cls, config):
+        cls.file_save_dir = config.get("file_save_dir")
+        cls.output_columns = config.get("output_columns")
+        cls.sheetname = config.get("sheetname")
+        cls.file_prefix = config.get("file_prefix")
+        cls.save_sheet_name = config.get("save_sheet_name")
+
+    def transform(cls, file_paths: List, save=True) -> pd.DataFrame:
+        # Read each file, skipping the first 7 rows
+        read_df = lambda path: pd.read_excel(
+            path, sheet_name=cls.sheetname, skiprows=2, skipfooter=1, header=None
+        )
+
+        df_list = []
+        for path in file_paths:
+            df = read_df(path)
+            df["Date"] = "".join(os.path.basename(str(path)).split(".")[:-1])
+            df_list.append(df)
+
+        df = pd.concat(df_list, axis=0)
+        df.columns = cls.output_columns
+
+        filename = cls.get_filename_with_datetime(prefix=cls.file_prefix)
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            df.to_excel(xl_save_path, sheet_name=cls.save_sheet_name, index=False)
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
+
+class GST2BTransfromation(BaseTransformExcel):
+    NAME = "GST 2B Excel"
+    CONFIG = "gst2bexcel_config.json"
+
+    def __init__(cls, config):
+        cls.file_save_dir = config.get("file_save_dir")
+        cls.output_columns = config.get("output_columns")
+        cls.sheetname = config.get("sheetname")
+        cls.file_prefix = config.get("file_prefix")
+        cls.save_sheet_name = config.get("save_sheet_name")
+
+    def transform(cls, file_paths: List, save=True) -> pd.DataFrame:
+        # Read each file, skipping the first 7 rows
+        read_df = lambda path: pd.read_excel(path, sheet_name=cls.sheetname, skiprows=7)
+
+        df_list = []
+        for path in file_paths:
+            for _, row in read_df(path).iterrows():
+                df_list.append(list(row))
+
+        df = pd.DataFrame(data=df_list, columns=cls.output_columns)
+
+        filename = cls.get_filename_with_datetime(prefix=cls.file_prefix)
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+        if save:
+            # df.to_excel(xl_save_path, sheet_name=cls.save_sheet_name, index=False)
+            print(f"File saved to: {xl_save_path}")
+            df.to_excel(xl_save_path, sheet_name="Sheet1", index=False)
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
+
 class IpdOpdTransfromation(BaseTransformExcel):
 
-    def __init__(cls, columns: str, _for: str, filename_prefix = ""):
+    def __init__(cls, columns: str, _for: str, filename_prefix=""):
         cls.columns = columns
         cls.filename_prefix = filename_prefix
         cls.file_save_dir = "transformed"
         cls._for = _for
 
-        # IPD
-        # narration = f"Bill no: Bill No + Patient nane + TPA"
+    def transform(cls, path: str, save=True) -> pd.DataFrame:
+        df = pd.read_excel(path)
 
-        # OPD = narration = f"Bill no:" +  Bill No + Patient name
-
-    def transform(cls, df: pd.DataFrame, save= True) -> pd.DataFrame:
         df = cls.strip_column_names(df)
 
         df = df.sort_values(by=cls.columns)
@@ -84,40 +165,39 @@ class IpdOpdTransfromation(BaseTransformExcel):
         # Convert datetime columns to date format="%d/%m/%Y"
         for column in datetime_columns:
             df[column] = df[column].dt.strftime("%d/%m/%Y")
-        
 
         def concat_cols(r):
             if cls._for == "ipd":
                 try:
-                    return  f"Bill No: {int(r['Bill No'])} {r['Patient Name']} {r['TPA']}"
+                    return (
+                        f"Bill No: {int(r['Bill No'])} {r['Patient Name']} {r['TPA']}"
+                    )
                 except Exception as e:
                     return ""
-            try:   
+            try:
                 return f"Bill No: {int(r['Bill No'])} {r['Patient Name']}"
             except Exception as e:
                 return ""
-        
-        # concat columns
-        df['Narration'] = df.apply(concat_cols, axis= 1)
 
-        filename = cls.get_filename_with_datetime(prefix= f"{cls.filename_prefix}_")
+        # concat columns
+        df["Narration"] = df.apply(concat_cols, axis=1)
+
+        # drop all the rows where all the cell are empty
+        df.dropna(how="all", inplace=True)
+
+        filename = cls.get_filename_with_datetime(prefix=f"{cls.filename_prefix}_")
         xl_save_path = os.path.join(cls.file_save_dir, filename)
 
         # if dir not exist then create one
         if not os.path.isdir(cls.file_save_dir):
             os.makedirs(cls.file_save_dir, exist_ok=True)
 
-
-
         if save:
             print(f"File saved to: {xl_save_path}")
             # Convert the dataframe to an XlsxWriter Excel object.
             df.to_excel(xl_save_path, sheet_name="Sheet1", index=False)
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
-
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
@@ -137,19 +217,18 @@ class TransformExcelPurchase(BaseTransformExcel):
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.party_gst_index = config["party_gst_index"]
         cls.gst_mapping_xl_path: str = config["gst_mapping_xl_path"]
-        cls.column_to_idx: dict = config['column_to_idx']
+        cls.column_to_idx: dict = config["column_to_idx"]
 
-
-    def get_gst_state(cls, gst_code: str)->str:
+    def get_gst_state(cls, gst_code: str) -> str:
         try:
             # Get the absolute path to the Excel file
-            excel_file_path = os.path.join( cls.gst_mapping_xl_path)
-            
+            excel_file_path = os.path.join(cls.gst_mapping_xl_path)
+
             # Read the Excel file into a DataFrame
             df = pd.read_excel(excel_file_path)
-            
+
             # Check if the input_value exists in the 'Mapping from' column
-            mapping_to = df.loc[df['TIN'] == gst_code, 'State'].values
+            mapping_to = df.loc[df["TIN"] == gst_code, "State"].values
 
             if len(mapping_to) > 0:
                 # Return the corresponding mapping to value
@@ -167,21 +246,23 @@ class TransformExcelPurchase(BaseTransformExcel):
         gst_no = str(row.iloc[cls.party_gst_index]).strip()
         calculate_igst = not (str(gst_no).strip().startswith("05"))
         state = "" if gst_no == "nan" else cls.get_gst_state(int(gst_no[:2]))
-                  
+
         new_rows = []
         # for per, amount in [(5, amount_5), (12, amount_12), (18, amount_18)]:
         for gst in cls.gst_data:
             gst_percentage = gst["gst_percentage"]
             cgst_sgst_per = (gst_percentage / 2) if (not calculate_igst) else 0.0
             amount = float(row.iloc[gst["target_column_idx"]])
-        
+
             if amount == 0.0:
                 continue
 
             cgst_sgst_amt = (
-                 round(amount * cgst_sgst_per / 100, 2) if not calculate_igst else 0.0
+                round(amount * cgst_sgst_per / 100, 2) if not calculate_igst else 0.0
             )
-            igst_amt = round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
+            igst_amt = (
+                round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
+            )
             discount = 0.0
             total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
             new_row = cls.get_default_row_format(
@@ -190,11 +271,15 @@ class TransformExcelPurchase(BaseTransformExcel):
                         i["column"]: str(row.iloc[i["target_column_idx"]]).strip()
                         for i in cls.target_columns_index
                     },
-                    "Party's GST" : "" if gst_no == "nan" else gst_no,
-                    "Reg Type" : "unregistered/consumer" if gst_no == 'nan' else "regular",
+                    "Party's GST": "" if gst_no == "nan" else gst_no,
+                    "Reg Type": (
+                        "unregistered/consumer" if gst_no == "nan" else "regular"
+                    ),
                     "Product's Name": f"Medicine {gst_percentage}%",
-                    "State" : "Uttrakhand" if gst_no == "nan" else state,
-                    "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']])[5:].strip(),
+                    "State": "Uttrakhand" if gst_no == "nan" else state,
+                    "Party/Cash": str(row.iloc[cls.column_to_idx["Party/Cash"]])[
+                        5:
+                    ].strip(),
                     "GST%": gst_percentage,
                     "Amount": amount,
                     "CGST %": cgst_sgst_per,
@@ -211,7 +296,9 @@ class TransformExcelPurchase(BaseTransformExcel):
 
         return new_rows
 
-    def transform(cls, df: pd.DataFrame, save=True):
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
+
         rows_to_df = []
         # Iterate over rows
         for _, row in df.iterrows():
@@ -269,10 +356,7 @@ class TransformExcelPurchase(BaseTransformExcel):
             print(f"File saved to: {xl_save_path}")
             writer.close()
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
-
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
@@ -288,14 +372,16 @@ class TransformExcelSale(BaseTransformExcel):
         cls.filename_prefix = "GSTR1"
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.party_gst_index = config["party_gst_index"]
-        cls.column_to_idx: dict = config['column_to_idx']
-        
-        # changes every time
-        cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
-        cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
-        cls.calculate_igst = kwargs.get('calculate_igst', False)
+        cls.column_to_idx: dict = config["column_to_idx"]
 
-    def get_transformed_rows(cls, row, bill_date: str,  bill_no: str, calculate_igst=False):
+        # changes every time
+        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
+        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
+        cls.calculate_igst = kwargs.get("calculate_igst", False)
+
+    def get_transformed_rows(
+        cls, row, bill_date: str, bill_no: str, calculate_igst=False
+    ):
         new_rows = []
         gst_no = str(row.iloc[cls.party_gst_index])
 
@@ -306,8 +392,10 @@ class TransformExcelSale(BaseTransformExcel):
             if amount == 0.0:
                 continue
 
-            cgst_sgst_amt =  round(amount * cgst_sgst_per / 100, 2)
-            igst_amt = round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
+            cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+            igst_amt = (
+                round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
+            )
             discount = 0.0
             total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
             new_row = cls.get_default_row_format(
@@ -316,10 +404,14 @@ class TransformExcelSale(BaseTransformExcel):
                         i["column"]: str(row.iloc[i["target_column_idx"]]).strip()
                         for i in cls.target_columns_index
                     },
-                    "Reg Type" : "unregistered/consumer" if gst_no == 'nan' else "regular",
+                    "Reg Type": (
+                        "unregistered/consumer" if gst_no == "nan" else "regular"
+                    ),
                     "Product's Name": f"Medicine {gst_percentage}%",
-                    "Party/Cash" : str(row.iloc[cls.column_to_idx['Party/Cash']]).split("-")[0].strip(),
-                    "Bill No." : bill_no,
+                    "Party/Cash": str(row.iloc[cls.column_to_idx["Party/Cash"]])
+                    .split("-")[0]
+                    .strip(),
+                    "Bill No.": bill_no,
                     "Inv Date": bill_date,
                     "GST%": gst_percentage,
                     "Amount": amount,
@@ -336,7 +428,8 @@ class TransformExcelSale(BaseTransformExcel):
 
         return new_rows
 
-    def transform(cls, df: pd.DataFrame, save=True):
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
         rows_to_df = []
         bill_counter = cls.bill_no_suffix_counter
 
@@ -361,19 +454,19 @@ class TransformExcelSale(BaseTransformExcel):
             ):
                 # Set current bill number
                 new_tranformed_rows = cls.get_transformed_rows(
-                    row, 
+                    row,
                     bill_date=current_bill_date,
-                    bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}",
-                    calculate_igst =  cls.calculate_igst
-                    )
+                    bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}",
+                    calculate_igst=cls.calculate_igst,
+                )
                 rows_to_df += new_tranformed_rows
-                
+
                 # if new rows added then only increase the bill counter
                 # there may be case where no rows were added because amount is 0
                 if len(new_tranformed_rows) > 0:
                     bill_counter += 1
 
-        filename = cls.get_filename_with_datetime(prefix= f"{cls.filename_prefix}_")
+        filename = cls.get_filename_with_datetime(prefix=f"{cls.filename_prefix}_")
         xl_save_path = os.path.join(cls.file_save_dir, filename)
 
         # if dir not exist then create one
@@ -414,54 +507,86 @@ class TransformExcelSale(BaseTransformExcel):
             writer.close()
 
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
-
+# Stock Transformation earlier
 class TransformStockExcel(BaseTransformExcel):
+    APP_NAME = "Mutual Fund"
+
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
 
         pass
 
-    def transform(cls, df: pd.DataFrame, save=True) -> pd.DataFrame:
-        '''
+    def transform(cls, path: str, save=True) -> pd.DataFrame:
+        """
         - Iterate over df rows
         - If row == header then append opening balalnce data.
-        '''
+        """
+        df = pd.read_excel(path, skiprows=4)
         result = []
         stock_name = None
         for index, row in df.iterrows():
             # if the header found
-            if row[0] == "Sr." and row[1] == "Transaction Date" and row[2] == "Transaction Type" and row[3] == "Amount" and row[4] == "Units":
+            if (
+                row[0] == "Sr."
+                and row[1] == "Transaction Date"
+                and row[2] == "Transaction Type"
+                and row[3] == "Amount"
+                and row[4] == "Units"
+            ):
                 # if header found then get stock name from prv cell
-                stock_name = "".join(str(df.iloc[index - 1, 0]).split("-")[:-1])
+                stock_name = str(df.iloc[index - 1, 0]).strip().split("-")
+                stock_name = "".join(stock_name[:-1]) if len(stock_name) > 1 else stock_name[0]
+                # if stock_name == "":
+                #     [print("==============================")]
+                #     print(f"Stock found at {index - 1}")
+                #     print(str(df.iloc[index - 1, 0]).split("-")[:-1])
                 # also append the next cell data to the result which is opening balance
-                result.append([len(result)+1, stock_name, "", df.iloc[index + 1, 1], df.iloc[index + 1, 3], ""])
+                result.append(
+                    [
+                        len(result) + 1,
+                        stock_name,
+                        "",
+                        df.iloc[index + 1, 1],
+                        df.iloc[index + 1, 3],
+                        "",
+                    ]
+                )
             # if the cell is not null and has int data at first
-            elif pd.notnull(row[0]) and isinstance(row[0], int) and str(row[2]) != "nan":
+            elif (
+                pd.notnull(row[0]) and isinstance(row[0], int) and str(row[2]) != "nan"
+            ):
 
-                result.append([len(result)+1, stock_name, row[1], row[2], row[3], row[4]])
+                result.append(
+                    [len(result) + 1, stock_name, row[1], row[2], row[3], row[4]]
+                )
+                # if stock_name == "":
+                #     print("find")
             # if nothing matches then continue
             else:
                 continue
 
-        columns = ["Sr.", "Fund Name", "Transaction Date", "Transaction Type", "Amount", "Units"]
+        columns = [
+            "Sr.",
+            "Fund Name",
+            "Transaction Date",
+            "Transaction Type",
+            "Amount",
+            "Units",
+        ]
 
         df = pd.DataFrame(result, columns=columns)
 
-
         if save:
-            filename = cls.get_filename_with_datetime(prefix="Stock_")
+            filename = cls.get_filename_with_datetime(prefix="Mutual-Fund_")
             xl_save_path = os.path.join(cls.file_save_dir, filename)
             df.to_excel(xl_save_path, index=False)
+            print(f"File saved to: {xl_save_path}")
 
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
@@ -475,20 +600,21 @@ class TransformExcelGST(BaseTransformExcel):
         cls.default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.perfix_for_totals = config["perfix_for_totals"]
-        cls.column_to_idx: dict = config['column_to_idx']
-        cls.target_columns_index:list = config['target_columns_index']
-        
+        cls.column_to_idx: dict = config["column_to_idx"]
+        cls.target_columns_index: list = config["target_columns_index"]
+
         # changes every time
-        cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
-        cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
-        cls.calculate_igst = kwargs.get('calculate_igst', False)
-        
-        # Mapping file 
+        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
+        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
+        cls.calculate_igst = kwargs.get("calculate_igst", False)
+
+        # Mapping file
         cls._mapping_df = kwargs.get("mapping_df", None)
         cls.mapping_sheetname = config["mapping_sheetname"]
 
     def transform_mapping(cls):
-        df = cls._mapping_df.iloc[7:, 1:]
+
+        df = cls._mapping_df.iloc[6:, 1:]
         # Set the headers to be the values from the first row
         new_headers = df.iloc[0]
         df.columns = new_headers
@@ -498,7 +624,7 @@ class TransformExcelGST(BaseTransformExcel):
 
         cls._mapping_df = df
 
-    def is_present_in_mapping(cls, value_to_find, column: str = "Bill No." ):
+    def is_present_in_mapping(cls, value_to_find, column: str = "Bill No."):
         if value_to_find in cls._mapping_df[column].values:
             index = cls._mapping_df[cls._mapping_df[column] == value_to_find].index[0]
             if float(cls._mapping_df.at[index, "INDIAN BANK"]) > 0.0:
@@ -508,29 +634,33 @@ class TransformExcelGST(BaseTransformExcel):
     def get_transformed_rows(cls, row, bill_no: str):
         new_rows = []
 
-        cgst_sgst_per = float(row[cls.column_to_idx['SGST %']])
-        igst_per = float(row[cls.column_to_idx['IGST %']])
+        cgst_sgst_per = float(row[cls.column_to_idx["SGST %"]])
+        igst_per = float(row[cls.column_to_idx["IGST %"]])
         gst_percentage = int(cgst_sgst_per * 2)
-        amount = float(row.iloc[cls.column_to_idx['Amount']])
+        amount = float(row.iloc[cls.column_to_idx["Amount"]])
 
         if amount == 0.0:
             return []
 
-        cgst_sgst_amt =  round(amount * cgst_sgst_per / 100, 2)
-        igst_amt =  round(amount * igst_per / 100, 2)
+        cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+        igst_amt = round(amount * igst_per / 100, 2)
         discount = 0.0
         total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
-        party_cash =  "SWIP CARD" if cls.is_present_in_mapping(value_to_find= cls.get(row, "Inv No.")) else cls.get(row, "Party/Cash")
+        party_cash = (
+            "SWIP CARD"
+            if cls.is_present_in_mapping(value_to_find=cls.get(row, "Inv No."))
+            else cls.get(row, "Party/Cash")
+        )
         new_row = cls.get_default_row_format(
             {
                 **{
-                    tg: str(row.iloc[  cls.column_to_idx[tg]  ]).strip()
+                    tg: str(row.iloc[cls.column_to_idx[tg]]).strip()
                     for tg in cls.target_columns_index
                 },
-                "Bill No." : bill_no,
-                "Party/Cash" : party_cash, 
-                "Qty" : math.ceil(row[cls.column_to_idx['Qty']]),
-                "Reg Type" : "unregistered/consumer",
+                "Bill No.": bill_no,
+                "Party/Cash": party_cash,
+                "Qty": math.ceil(row[cls.column_to_idx["Qty"]]),
+                "Reg Type": "unregistered/consumer",
                 "Product's Name": f"Medicine {gst_percentage}%",
                 "GST%": gst_percentage,
                 "Amount": amount,
@@ -547,12 +677,11 @@ class TransformExcelGST(BaseTransformExcel):
 
         return new_rows
 
-
-
-    def transform(cls, df: pd.DataFrame, save=True):
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
         # drop the 1st empty column
         # drop the 1st empty column
-        df = df.iloc[: , 1:]
+        df = df.iloc[:, 1:]
 
         cls.transform_mapping()
 
@@ -564,7 +693,8 @@ class TransformExcelGST(BaseTransformExcel):
         for _, row in df.iterrows():
             # if gross total reached then break the loop
 
-            if str(row.iloc[1]).strip() == "Gross Total":break
+            if str(row.iloc[1]).strip() == "Gross Total":
+                break
 
             # if cell-0 is nan and we have last row data
             if str(row.iloc[0]).strip() == "nan" and last_row is not None:
@@ -572,19 +702,18 @@ class TransformExcelGST(BaseTransformExcel):
                     row.iloc[copy_idx] = last_row.iloc[copy_idx]
 
             # if the row does not match the following format= "<digit><dot>"
-            elif (not str(row.iloc[0]).split(".")[0].strip().isdigit()):
+            elif not str(row.iloc[0]).split(".")[0].strip().isdigit():
                 continue
             else:
                 # digit case found
                 bill_counter += 1
-                last_row= copy.deepcopy(row)
+                last_row = copy.deepcopy(row)
 
             new_tranformed_rows = cls.get_transformed_rows(
-                row, 
-                bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}",
-                )
-            
-            
+                row,
+                bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}",
+            )
+
             # if new rows added then only increase the bill counter
             # there may be case where no rows were added because amount is 0
             if len(new_tranformed_rows) > 0:
@@ -630,9 +759,7 @@ class TransformExcelGST(BaseTransformExcel):
             writer.close()
 
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
@@ -650,13 +777,11 @@ class TransformExcelJJOnly(BaseTransformExcel):
         cls.target_columns_index = config["target_columns_index"]
         cls.file_save_dir = "transformed"
         cls.perfix_for_totals = config["perfix_for_totals"]
-        cls.column_to_idx: dict = config['column_to_idx']
-        
+        cls.column_to_idx: dict = config["column_to_idx"]
+
         # changes every time
-        cls.bill_no_prefix = kwargs.get('bill_no_prefix', None)
-        cls.bill_no_suffix_counter = kwargs.get('bill_no_suffix_counter', None)
-
-
+        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
+        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
 
     def get_transformed_rows(cls, row, inv_no: str, calculate_igst=False):
         new_rows = []
@@ -671,13 +796,17 @@ class TransformExcelJJOnly(BaseTransformExcel):
         if amount == 0.0:
             return None
 
-        cgst_sgst_amt =  round(amount * cgst_sgst_per / 100, 2)
+        cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
         igst_amt = round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
         total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
         inv_date = cls.get(row, "Inv Date").strftime(format="%d/%m/%Y")
 
-        # party/cash 
-        party_cash = cls.get(row, "Article Description").strip() + " " + cls.get(row, "EAN Number").strip()
+        # party/cash
+        party_cash = (
+            cls.get(row, "Article Description").strip()
+            + " "
+            + cls.get(row, "EAN Number").strip()
+        )
 
         new_row = cls.get_default_row_format(
             {
@@ -685,9 +814,9 @@ class TransformExcelJJOnly(BaseTransformExcel):
                     colname: str(cls.get(row, colname)).strip()
                     for colname in cls.target_columns_index
                 },
-                "Inv Date" : inv_date,
-                "Inv No." : inv_no,
-                "Product's Name" : party_cash,
+                "Inv Date": inv_date,
+                "Inv No.": inv_no,
+                "Product's Name": party_cash,
                 "GST %": gst_percentage,
                 "Amount": amount,
                 "CGST %": cgst_sgst_per,
@@ -703,7 +832,8 @@ class TransformExcelJJOnly(BaseTransformExcel):
 
         return new_rows
 
-    def transform(cls, df: pd.DataFrame, save=True):
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
         rows_to_df = []
         bill_counter = cls.bill_no_suffix_counter
 
@@ -716,24 +846,21 @@ class TransformExcelJJOnly(BaseTransformExcel):
         # Iterate over rows
         for _, row in df.iterrows():
             row = list(row)
-            
+
             if billNo_counter_dict.get(cls.get(row, "Bill No.")) is not None:
                 _bill_counter = billNo_counter_dict.get(cls.get(row, "Bill No."))
             else:
                 _bill_counter = bill_counter
                 # add the new bill number to dict
                 billNo_counter_dict[cls.get(row, "Bill No.")] = _bill_counter
-                bill_counter += 1 # update the bill no
-
+                bill_counter += 1  # update the bill no
 
             # Set current bill number
             new_tranformed_rows = cls.get_transformed_rows(
                 row,
-                inv_no = f"{cls.bill_no_prefix}{_bill_counter:05d}",
-                )
+                inv_no=f"{cls.bill_no_prefix}{_bill_counter:05d}",
+            )
             rows_to_df += new_tranformed_rows
-
-                
 
         # File saving starts from here
         filename = cls.get_filename_with_datetime(prefix="JJOnly_")
@@ -777,25 +904,18 @@ class TransformExcelJJOnly(BaseTransformExcel):
             writer.close()
 
         return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name = filename
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
+## Sanity check functions
 
 
 def check_for_stock():
     default_config = {}
     obj = TransformStockExcel(default_config)
-    def get_df():
-        sale_path = "/home/akshat/Documents/projects/joshi-uncle/data/stock.xlsx"
-        df = pd.read_excel(
-            sale_path, header=None
-        )
-        return df
-    obj.transform(get_df())
-    
+    obj.transform("/home/akshat/Documents/projects/joshi-uncle/data/MutalFund_stock_forErrorRows.xlsx", save=True)
+
 
 def check_for_purchase():
     default_config = TransformExcelPurchase.default_config()
@@ -826,6 +946,7 @@ def check_for_sale():
 
     obj.transform_bill(get_df())
 
+
 def check_for_gst():
     default_config = TransformExcelGST.read_config(
         os.path.join("excel_app", "config", "gst_config.json")
@@ -833,13 +954,15 @@ def check_for_gst():
     bill_no_prefix = "JPS/23/24/"
     bill_no_suffix_counter = 1546
 
-    obj = TransformExcelGST( default_config, bill_no_prefix=bill_no_prefix, bill_no_suffix_counter= bill_no_suffix_counter)
+    obj = TransformExcelGST(
+        default_config,
+        bill_no_prefix=bill_no_prefix,
+        bill_no_suffix_counter=bill_no_suffix_counter,
+    )
 
     def get_df():
         sale_path = "../data/gst2.xls"
-        df = pd.read_excel(
-            sale_path, header=None
-        )
+        df = pd.read_excel(sale_path, header=None)
         return df
 
     obj.transform(get_df())
@@ -861,12 +984,45 @@ def check_for_jjonly():
 
     def get_df():
         sale_path = "../data/jj-only.xlsx"
-        df = pd.read_excel(
-            sale_path, header=None
-        )
+        df = pd.read_excel(sale_path, header=None)
         return df
 
     obj.transform(get_df())
 
+
+def check_for_gst2b():
+    default_config = TransformExcelSale.read_config(
+        os.path.join("excel_app", "config", "gst2b_config.json")
+    )
+    obj = GST2BTransfromation(default_config)
+
+    def get_df():
+        dfs = []
+        for file in os.listdir("../data/GST2BExcels/"):
+            dfs.append("../data/GST2BExcels/" + file)
+
+        return dfs
+
+    dfs = get_df()
+    obj.transform(dfs)
+
+
+def check_for_echs():
+    default_config = TransformExcelSale.read_config(
+        os.path.join("excel_app", "config", "echs_due-config.json")
+    )
+    obj = EchsDueTransfromation(default_config)
+
+    def get_df():
+        dfs = []
+        for file in os.listdir("../data/echs-due/"):
+            dfs.append("../data/echs-due/" + file)
+
+        return dfs
+
+    dfs = get_df()
+    obj.transform(dfs)
+
+
 if __name__ == "__main__":
-    check_for_jjonly()
+    check_for_stock()

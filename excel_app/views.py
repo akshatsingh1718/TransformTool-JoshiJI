@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect, JsonResponse
 import pandas as pd
-from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, TransformExcelJJOnly, IpdOpdTransfromation, BaseTransformExcel
+from .utils import TransformExcelSale, TransformExcelPurchase, TransformStockExcel, TransformExcelGST, GST2BTransfromation, TransformExcelJJOnly, IpdOpdTransfromation, EchsDueTransfromation ,BaseTransformExcel
 import os
 import platform
 
@@ -41,7 +41,8 @@ def upload_excel(request):
     if request.method == "POST":
         excel_file = request.FILES["excel_file"]
         change_format = request.POST["change_format"]
-        df = pd.read_excel(excel_file)
+        
+        # df = pd.read_excel(excel_file)
         transform = None
         if change_format == "transform_sale":
             default_config = TransformExcelSale.read_config(
@@ -70,7 +71,7 @@ def upload_excel(request):
             
         elif change_format == "transform_stock":
             transform = TransformStockExcel({})
-            heading = "Stock Transformation"
+            heading = "Mutual Fund Transformation"
 
         elif change_format == "transform_gst":
             mapping_df = pd.read_excel(request.FILES["mapping_file"])
@@ -106,12 +107,29 @@ def upload_excel(request):
         elif change_format == "transform_ipd":
             transform = IpdOpdTransfromation(columns="TPA", filename_prefix= "IPD", _for ="ipd")
             heading = "IPD Transformation"
+        
         elif change_format == "transform_opd":
             transform = IpdOpdTransfromation(columns="Payment Mode", filename_prefix= "OPD", _for="opd")
             heading = "OPD Transformation"
 
+        elif change_format == "transform_gst2b":
+            default_config = TransformExcelSale.read_config(
+                os.path.join("excel_app", "config", "gst2b_config.json")
+            )
+            transform = GST2BTransfromation(default_config)
+            heading = "GST 2B Excel Transformation"
+            excel_file = request.FILES.getlist('excel_file')
 
-        data = transform.transform(df, save=True)
+        elif change_format == "transform_EchsDue":
+            default_config = TransformExcelSale.read_config(
+                os.path.join("excel_app", "config", "echs_due-config.json")
+            )
+            transform = EchsDueTransfromation(default_config)
+            heading = "ECHS DUE Transformation"
+            excel_file = request.FILES.getlist('excel_file')
+
+
+        data = transform.transform(excel_file, save=True)
 
         return render(
             request,

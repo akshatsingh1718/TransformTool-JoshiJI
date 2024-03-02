@@ -1,0 +1,18 @@
+{
+    "output_columns" : [
+        "Sr No.",
+        "Bill No.",
+        "Name",
+        "Age",
+        "Type",
+        "",
+        "Amount",
+        "",
+        "Date"
+    ],
+    "app_name": "ECHS DUE",
+    "file_prefix": "ECHS-DUE_",
+    "file_save_dir": "transformed",
+    "sheetname": "Sheet1",
+    "save_sheet_name" : "Sheet1"
+}

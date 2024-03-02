@@ -1,0 +1,31 @@
+{
+  "app_name": "GST 2B Excel",
+  "file_prefix": "GST-2B-Excel_",
+  "file_save_dir": "transformed",
+  "sheetname": "B2B",
+  "save_sheet_name" : "Sheet1",
+  "output_columns": [
+    "GSTIN of supplier",
+    "Trade/Legal name",
+    "Invoice number",
+    "Invoice type",
+    "Invoice Date",
+    "Invoice Value(₹)",
+    "Place of supply",
+    "Supply Attract Reverse Charge",
+    "Rate(%)",
+    "Taxable Value (₹)",
+    "Integrated Tax(₹)",
+    "Central Tax(₹)",
+    "State/UT Tax(₹)",
+    "Cess(₹)",
+    "GSTR-1/IFF/GSTR-5 Period",
+    "GSTR-1/IFF/GSTR-5 Filing Date",
+    "ITC Availability",
+    "Reason",
+    "Applicable % of Tax Rate",
+    "Source",
+    "IRN",
+    "IRN Date"
+  ]
+}
