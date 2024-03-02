@@ -28,6 +28,8 @@
 - [x] sale transformation name = GST Sale without qty 
 - [x] gst transformation name = GSTR1 with qty
 - [x] GSTR1 with qty transformation : Party = Swip card if inv no in mapping file
+
+# Work for 2 Mar 24
 - [x] Narration column in IPD and OPD.
 - [x] implemented GST 2B Excels
 - [x] Check missing row; in stock; change name to mutual fund. (Solved: stock.split("-")[:-1] is giving blank for non "-" texts )
