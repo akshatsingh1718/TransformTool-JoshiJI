@@ -46,6 +46,17 @@ class BaseTransformExcel:
     def get(cls, row, column: str):
         return row[cls.column_to_idx[column]]
 
+    def fget(cls, row, column: str = "", dcol: str = ""):
+        """
+        Float get
+        dcol: direct column name
+        column: fetch index from column_to_idx
+        """
+        if dcol != "":
+            return float(row[dcol])
+
+        return row[cls.column_to_idx[column]]
+
     @staticmethod
     def strip_column_names(df):
         """
@@ -123,6 +134,7 @@ class GST2BTransfromation(BaseTransformExcel):
                 df_list.append(list(row))
 
         df = pd.DataFrame(data=df_list, columns=cls.output_columns)
+        df = df.sort_values(by="Trade/Legal name")
 
         filename = cls.get_filename_with_datetime(prefix=cls.file_prefix)
         xl_save_path = os.path.join(cls.file_save_dir, filename)
@@ -142,8 +154,8 @@ class GST2BTransfromation(BaseTransformExcel):
 
 class IpdOpdTransfromation(BaseTransformExcel):
 
-    def __init__(cls, columns: str, _for: str, filename_prefix=""):
-        cls.columns = columns
+    def __init__(cls, sort_columns: str, _for: str, filename_prefix=""):
+        cls.sort_columns = sort_columns
         cls.filename_prefix = filename_prefix
         cls.file_save_dir = "transformed"
         cls._for = _for
@@ -153,7 +165,7 @@ class IpdOpdTransfromation(BaseTransformExcel):
 
         df = cls.strip_column_names(df)
 
-        df = df.sort_values(by=cls.columns)
+        df = df.sort_values(by=cls.sort_columns)
 
         ## change date time fileds format
         # List to store the names of datetime columns
@@ -510,6 +522,7 @@ class TransformExcelSale(BaseTransformExcel):
             xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
+
 # Stock Transformation earlier
 class TransformStockExcel(BaseTransformExcel):
     APP_NAME = "Mutual Fund"
@@ -538,7 +551,9 @@ class TransformStockExcel(BaseTransformExcel):
             ):
                 # if header found then get stock name from prv cell
                 stock_name = str(df.iloc[index - 1, 0]).strip().split("-")
-                stock_name = "".join(stock_name[:-1]) if len(stock_name) > 1 else stock_name[0]
+                stock_name = (
+                    "".join(stock_name[:-1]) if len(stock_name) > 1 else stock_name[0]
+                )
                 # if stock_name == "":
                 #     [print("==============================")]
                 #     print(f"Stock found at {index - 1}")
@@ -908,13 +923,132 @@ class TransformExcelJJOnly(BaseTransformExcel):
         )
 
 
+class GSTR1Self(BaseTransformExcel):
+    NAME = "GSTR1 Self"
+    CONFIG = "gstr1_self_config.json"
+
+    def __init__(cls, config, **kwargs):
+        cls.output_columns = config["output_columns"]
+        cls.default_output_row = config["default_output_row"]
+        cls.columns_to_sum = config["columns_to_sum"]
+        cls.direct_target_cols = config["direct_target_cols"]
+        cls.perfix_for_totals = config["perfix_for_totals"]
+        cls.gst_data: dict = config["gst_data"]
+
+        # kwargs
+        cls.calculate_igst = kwargs.get("calculate_igst", False)
+
+        # constants
+        cls.file_save_dir = "transformed"
+        cls.filename_prefix = "GSTR1_Self_"
+
+    def get_transformed_rows(cls, row, calculate_igst=False) -> list:
+        new_rows = []
+
+        for gst_data in cls.gst_data:
+            gst_percentage = gst_data["gst_percentage"]
+            cgst_sgst_per = gst_percentage / 2
+
+            amount = round(float(row["RATE"]) * float(row["QTY"]), 2)
+            cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+            igst_amt = (
+                round(amount * gst_percentage / 100, 2) if calculate_igst else 0.0
+            )
+            total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt, 2)
+            narration = f"Bill No. {str(row['BILL NO']).strip()} {str(row['PARTY']).strip()} {str(row['ITEM NAME']).strip()}"
+
+            new_row = cls.get_default_row_format(
+                {
+                    **{
+                        i["new_col"]: str(row[i["from_col"]]).strip()
+                        for i in cls.direct_target_cols
+                    },
+                    "GST%": gst_percentage,
+                    "Amount": amount,
+                    "CGST %": cgst_sgst_per,
+                    "CGST Amt": cgst_sgst_amt,
+                    "SGST %": cgst_sgst_per,
+                    "SGST Amt": cgst_sgst_amt,
+                    "IGST Amt": igst_amt,
+                    "Total": total_amt,
+                    "Narration": narration,
+                }
+            )
+            new_rows.append(copy.deepcopy(new_row))
+        return new_rows
+
+    def transform(cls, path: str, save=True):
+        # skip 6 rows
+        df = pd.read_excel(path, skiprows=6)
+        rows_to_df = []
+
+        for _, row in df.iterrows():
+            # guard clause for amt == 0
+            try:
+                if float(row["RATE"]) * float(row["QTY"]) == 0.0:
+                    continue
+                if str(row['BILL NO']).strip() == "nan":
+                    continue
+            except Exception as e:
+                continue
+
+            rows_to_df += cls.get_transformed_rows(row, cls.calculate_igst)
+
+        filename = cls.get_filename_with_datetime(prefix=cls.filename_prefix)
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
+
+        result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+
+        # Get the xlsxwriter objects from the dataframe writer object.
+        workbook = writer.book
+        worksheet = writer.sheets["Sheet1"]
+
+        no_of_row = worksheet.dim_rowmax
+        for col_to_sum in cls.columns_to_sum:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(col_to_sum) + 1
+            )  # offset of 1 for index to pos
+
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
+
+            worksheet.write_formula(index_of_sheet, formula)
+
+        if len(cls.columns_to_sum) > 0:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
+            )  # offset of 1 for index to pos
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
+
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            writer.close()
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
+
 ## Sanity check functions
 
 
 def check_for_stock():
     default_config = {}
     obj = TransformStockExcel(default_config)
-    obj.transform("/home/akshat/Documents/projects/joshi-uncle/data/MutalFund_stock_forErrorRows.xlsx", save=True)
+    obj.transform(
+        "/home/akshat/Documents/projects/joshi-uncle/data/MutalFund_stock_forErrorRows.xlsx",
+        save=True,
+    )
 
 
 def check_for_purchase():
@@ -1024,5 +1158,14 @@ def check_for_echs():
     obj.transform(dfs)
 
 
+def check_for_gstr1Self():
+    default_config = TransformExcelSale.read_config(
+        os.path.join("excel_app", "config", "gstr1_self_config.json")
+    )
+    obj = GSTR1Self(default_config)
+
+    obj.transform("../data/GSTR1_self.XLS")
+
+
 if __name__ == "__main__":
-    check_for_stock()
+    check_for_gstr1Self()

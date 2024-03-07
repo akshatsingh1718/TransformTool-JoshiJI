@@ -35,3 +35,8 @@
 - [x] Check missing row; in stock; change name to mutual fund. (Solved: stock.split("-")[:-1] is giving blank for non "-" texts )
 - [x] ECHS DUE.
 - [x] IPD/OPD remove blank rows
+
+
+# Work for 7 Mar 24
+- [x] GST 2B Excel: "Trade/Legal name" sort 
+- [x] GSTR1 Self: check email for structure.

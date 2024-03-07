@@ -1,0 +1,55 @@
+{
+  "output_columns": [
+    "Bill No.",
+    "Inv Date",
+    "Party/Cash",
+    "Product's Name",
+    "HSN Code",
+    "Qty",
+    "Rate",
+    "GST%",
+    "Amount",
+    "CGST %",
+    "CGST Amt",
+    "SGST %",
+    "SGST Amt",
+    "IGST Amt",
+    "Discount %",
+    "Total",
+    "State",
+    "Party's GST",
+    "Reg Type",
+    "Place of Supply",
+    "Country",
+    "Consignee State",
+    "Consignee GST",
+    "Narration"
+  ],
+  "columns_to_sum": ["Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"],
+  "perfix_for_totals": { "column": "Party/Cash", "label": "Total" },
+  "direct_target_cols": [
+    { "new_col": "Bill No.", "from_col": "BILL NO" },
+    { "new_col": "Inv Date", "from_col": "DATE" },
+    { "new_col": "Party/Cash", "from_col": "PARTY" },
+    { "new_col": "Product's Name", "from_col": "ITEM NAME" },
+    { "new_col": "HSN Code", "from_col": "HSN" },
+    { "new_col": "Qty", "from_col": "QTY" },
+    { "new_col": "Rate", "from_col": "RATE" },
+    { "new_col": "GST%", "from_col": "TAX RATE" },
+    { "new_col": "GST%", "from_col": "TAX RATE" }
+  ],
+  "gst_data": [
+    { "gst_percentage": 5 },
+    { "gst_percentage": 12 },
+    { "gst_percentage": 18 },
+    { "gst_percentage": 28 }
+  ],
+  "default_output_row": {
+    "State": "Uttarakhand",
+    "Place of Supply": "Uttarakhand",
+    "Country": "India",
+    "Consignee State": "Uttarakhand",
+    "Discount %": 0.0,
+    "Reg Type" : "Unregistered/Consumer"
+  }
+}
