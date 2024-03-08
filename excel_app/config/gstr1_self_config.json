@@ -1,5 +1,6 @@
 {
   "output_columns": [
+    "Inv No.",
     "Bill No.",
     "Inv Date",
     "Party/Cash",
@@ -30,7 +31,6 @@
   "direct_target_cols": [
     { "new_col": "Bill No.", "from_col": "BILL NO" },
     { "new_col": "Inv Date", "from_col": "DATE" },
-    { "new_col": "Party/Cash", "from_col": "PARTY" },
     { "new_col": "Product's Name", "from_col": "ITEM NAME" },
     { "new_col": "HSN Code", "from_col": "HSN" },
     { "new_col": "Qty", "from_col": "QTY" },

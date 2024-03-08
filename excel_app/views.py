@@ -74,6 +74,7 @@ def upload_excel(request):
                 calculate_igst=calculate_igst,
             )
             heading = "GSTR1 Transformation"
+        
         elif change_format == "transform_purchase":
             global_constants = BaseTransformExcel.read_config(
                 os.path.join("excel_app", "config", "constants.json")
@@ -95,8 +96,11 @@ def upload_excel(request):
             transform = TransformStockExcel({})
             heading = "Mutual Fund Transformation"
 
-        elif change_format == "transform_gst":
-            mapping_df = pd.read_excel(request.FILES["mapping_file"])
+        elif change_format == "transform_gstR1WithQty":
+            if request.FILES.get("mapping_file", None):
+                mapping_df = pd.read_excel(request.FILES["mapping_file"])
+            else:
+                mapping_df = None
 
             default_config = TransformExcelGST.read_config(
                 os.path.join("excel_app", "config", "gst_config.json")
@@ -161,10 +165,14 @@ def upload_excel(request):
             calculate_igst = (
                 False if request.POST.get("caculate_igst", None) is None else True
             )
+            inv_no_prefix = request.POST["bill_no_prefix"]
+            inv_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
 
             transform = GSTR1Self(
                 default_config,
                 calculate_igst=calculate_igst,
+                inv_no_prefix=inv_no_prefix,
+                inv_no_suffix_counter=inv_no_suffix_counter,
             )
             heading = "GSTR1 Self Transformation"
 

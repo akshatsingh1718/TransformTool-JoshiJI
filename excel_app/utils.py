@@ -624,10 +624,12 @@ class TransformExcelGST(BaseTransformExcel):
         cls.calculate_igst = kwargs.get("calculate_igst", False)
 
         # Mapping file
-        cls._mapping_df = kwargs.get("mapping_df", None)
+        cls._mapping_df = kwargs.get("mapping_df", None)  # optional
         cls.mapping_sheetname = config["mapping_sheetname"]
 
     def transform_mapping(cls):
+        if cls._mapping_df is None:
+            return
 
         df = cls._mapping_df.iloc[6:, 1:]
         # Set the headers to be the values from the first row
@@ -640,6 +642,9 @@ class TransformExcelGST(BaseTransformExcel):
         cls._mapping_df = df
 
     def is_present_in_mapping(cls, value_to_find, column: str = "Bill No."):
+        if cls._mapping_df is None:
+            return False
+
         if value_to_find in cls._mapping_df[column].values:
             index = cls._mapping_df[cls._mapping_df[column] == value_to_find].index[0]
             if float(cls._mapping_df.at[index, "INDIAN BANK"]) > 0.0:
@@ -937,12 +942,24 @@ class GSTR1Self(BaseTransformExcel):
 
         # kwargs
         cls.calculate_igst = kwargs.get("calculate_igst", False)
+        cls.inv_no_prefix = kwargs["inv_no_prefix"]
+        cls.inv_no_suffix_counter = kwargs["inv_no_suffix_counter"]
 
         # constants
         cls.file_save_dir = "transformed"
         cls.filename_prefix = "GSTR1_Self_"
 
-    def get_transformed_rows(cls, row, calculate_igst=False) -> list:
+    def remove_first_digits(cls, inp: str):
+        idx= 0
+
+        for c in inp:
+            if not c.isdigit():
+                break
+            idx += 1
+
+        return (inp[idx:]).strip()
+
+    def get_transformed_rows(cls, row, inv_no: str, calculate_igst=False) -> list:
         new_rows = []
 
         for gst_data in cls.gst_data:
@@ -963,7 +980,9 @@ class GSTR1Self(BaseTransformExcel):
                         i["new_col"]: str(row[i["from_col"]]).strip()
                         for i in cls.direct_target_cols
                     },
+                    "Inv No.": inv_no,
                     "GST%": gst_percentage,
+                    "Party/Cash" : cls.remove_first_digits(row["PARTY"]),
                     "Amount": amount,
                     "CGST %": cgst_sgst_per,
                     "CGST Amt": cgst_sgst_amt,
@@ -982,17 +1001,30 @@ class GSTR1Self(BaseTransformExcel):
         df = pd.read_excel(path, skiprows=6)
         rows_to_df = []
 
+        inv_no_getter = dict()
+        inv_counter = cls.inv_no_suffix_counter
+
         for _, row in df.iterrows():
             # guard clause for amt == 0
             try:
                 if float(row["RATE"]) * float(row["QTY"]) == 0.0:
                     continue
-                if str(row['BILL NO']).strip() == "nan":
+                if str(row["BILL NO"]).strip() == "nan":
                     continue
             except Exception as e:
                 continue
+            
+            # set the invoice number for bill no
+            if inv_no_getter.get(str(row["BILL NO"]).strip()) is None:
+                inv_no_getter[str(row["BILL NO"]).strip()] = inv_counter
+                inv_counter += 1
 
-            rows_to_df += cls.get_transformed_rows(row, cls.calculate_igst)
+            inv_suffix = inv_no_getter.get(str(row["BILL NO"]).strip())
+            rows_to_df += cls.get_transformed_rows(
+                row,
+                inv_no=f"{cls.inv_no_prefix}{inv_suffix}",
+                calculate_igst=cls.calculate_igst,
+            )
 
         filename = cls.get_filename_with_datetime(prefix=cls.filename_prefix)
         xl_save_path = os.path.join(cls.file_save_dir, filename)

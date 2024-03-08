@@ -40,3 +40,8 @@
 # Work for 7 Mar 24
 - [x] GST 2B Excel: "Trade/Legal name" sort 
 - [x] GSTR1 Self: check email for structure.
+
+# Work for 8 Mar 24
+- [x] remove number from Part/Cash in GSTR1_self.
+- [x] optional mapping file in gstr1 with qty.
+- [x] Bill no addition in gstr1 with qty.
