@@ -11,6 +11,7 @@ from .utils import (
     IpdOpdTransfromation,
     EchsDueTransfromation,
     GSTR1Self,
+    SMCGlobalShare,
     BaseTransformExcel,
 )
 import os
@@ -175,6 +176,9 @@ def upload_excel(request):
                 inv_no_suffix_counter=inv_no_suffix_counter,
             )
             heading = "GSTR1 Self Transformation"
+        elif change_format == "transform-smc_global_share":
+            transform = SMCGlobalShare()
+            heading = transform.APP_NAME
 
         data = transform.transform(excel_file, save=True)
 

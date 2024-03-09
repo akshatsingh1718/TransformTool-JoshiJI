@@ -1071,9 +1071,37 @@ class GSTR1Self(BaseTransformExcel):
         )
 
 
+
+class SMCGlobalShare(BaseTransformExcel):
+    APP_NAME = "SMC GLOBAL / SHARE"
+
+    def __init__(cls) -> None:
+        cls.filename_prefix = "SMC-GLOBAL-SHARE_"
+        cls.file_save_dir = "transformed"
+
+    def transform(cls, path: str, save=True):
+        # skip 6 rows
+        df = pd.read_excel(path, skiprows= 13)
+        rows_to_df = []
+
+        df = df[~df['Code'].str.startswith("Total Of(")]
+
+        filename = cls.get_filename_with_datetime(prefix=cls.filename_prefix)
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        if save:
+            df.to_excel(xl_save_path, sheet_name="Sheet1", index=False)
+            print(f"File saved to: {xl_save_path}")
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
 ## Sanity check functions
-
-
 def check_for_stock():
     default_config = {}
     obj = TransformStockExcel(default_config)
@@ -1199,5 +1227,10 @@ def check_for_gstr1Self():
     obj.transform("../data/GSTR1_self.XLS")
 
 
+def check_for_SMCGlobalShare():
+    obj = SMCGlobalShare()
+
+    obj.transform("../data/SMC-GLOBAL-SHARE.XLSx")
+
 if __name__ == "__main__":
-    check_for_gstr1Self()
+    check_for_SMCGlobalShare()
