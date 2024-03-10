@@ -1,0 +1,72 @@
+{
+  "output_columns": [
+    "BILL NO.",
+    "PARTY NAME",
+    "GST.No.",
+    "BILL VALUE",
+
+    "Nill Rated",
+    "CGST 0%",
+    "SGST 0%",
+
+    "GST 5%",
+    "CGST 2.5%",
+    "SGST 2.5%",
+
+    "GST 12%",
+    "CGST 6.0%",
+    "SGST 6.0%",
+
+    "GST 18%",
+    "CGST 9.0%",
+    "SGST 9.0%",
+
+    "Roundoff",
+    "Inv Date"
+  ],
+  "columns_to_sum": [
+    "GST 5%",
+    "CGST 2.5%",
+    "SGST 2.5%",
+    "GST 12%",
+    "CGST 6.0%",
+    "SGST 6.0%",
+    "GST 18%",
+    "CGST 9.0%",
+    "CGST 9.0%",
+    "Roundoff",
+    "BILL VALUE"
+  ],
+  "perfix_for_totals": { "column": "BILL NO.", "label": "Grand Total" },
+  "target_columns_index": ["Inv Date"],
+  "column_to_idx": {
+    "Party/Cash": 1,
+    "Inv No.": 4,
+    "Inv Date": 3,
+    "HSN Code": 8,
+    "SGST %": 12,
+    "IGST %": 16,
+    "Amount": 11,
+    "Qty": 9
+  },
+  "default_output_row": {
+    "Nill Rated": 0.0,
+    "CGST 0%": 0.0,
+    "SGST 0%": 0.0,
+
+    "GST 5%" : 0.0,
+    "CGST 2.5%": 0.0,
+    "SGST 2.5%": 0.0,
+    
+    "GST 12%": 0.0,
+    "CGST 6.0%": 0.0,
+    "SGST 6.0%": 0.0,
+
+    "GST 18%": 0.0,
+    "SGST 9.0%": 0.0,
+    "CGST 9.0%": 0.0,
+
+    "GST.No.": ""
+  },
+  "mapping_sheetname": "CREDIT CARD"
+}

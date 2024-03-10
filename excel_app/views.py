@@ -12,6 +12,8 @@ from .utils import (
     EchsDueTransfromation,
     GSTR1Self,
     SMCGlobalShare,
+    GSTR1EchsPmjay,
+    GSTR1Marg,
     BaseTransformExcel,
 )
 import os
@@ -179,6 +181,51 @@ def upload_excel(request):
         elif change_format == "transform-smc_global_share":
             transform = SMCGlobalShare()
             heading = transform.APP_NAME
+
+
+            transform-gstr1-echs-pmjay
+
+        elif change_format == "transform-gstr1_echs_pmjay":
+            if request.FILES.get("mapping_file", None):
+                mapping_df = pd.read_excel(request.FILES["mapping_file"])
+            else:
+                mapping_df = None
+
+            default_config = GSTR1EchsPmjay.read_config(
+                os.path.join("excel_app", "config", "gstr1_echs_pmjay_config.json")
+            )
+            bill_no_prefix = request.POST["bill_no_prefix"]
+            bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
+
+            transform = GSTR1EchsPmjay(
+                default_config,
+                bill_no_prefix=bill_no_prefix,
+                bill_no_suffix_counter=bill_no_suffix_counter,
+                mapping_df=mapping_df,
+            )
+            heading = GSTR1EchsPmjay.APP_NAME
+
+        elif change_format == "transform-gstr1_marg":
+
+            if request.FILES.get("mapping_file", None):
+                mapping_df = pd.read_excel(request.FILES["mapping_file"])
+            else:
+                mapping_df = None
+
+            default_config = GSTR1Marg.read_config(
+                os.path.join("excel_app", "config", "gstr1_marg_config.json")
+            )
+            bill_no_prefix = request.POST["bill_no_prefix"]
+            bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
+
+            transform = GSTR1Marg(
+                default_config,
+                bill_no_prefix=bill_no_prefix,
+                bill_no_suffix_counter=bill_no_suffix_counter,
+                mapping_df=mapping_df,
+            )
+            heading = GSTR1Marg.APP_NAME
+        
 
         data = transform.transform(excel_file, save=True)
 

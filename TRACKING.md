@@ -46,3 +46,15 @@
 - [x] optional mapping file in gstr1 with qty.
 - [x] Bill no addition in gstr1 with qty.
 - [Payment not done - ] implemented "SMC GLOBAL /SHARE"
+
+# Work for 10 mar
+- Implemented "GSTR1 ECHS & PMJAY".
+    - mapping file and original file will be provided.
+    - Same as "GSTR1 with Qty logic".
+    - In Mapping logic, check for bill_no and card_payment. If card_payment > 0: "Swip Card";  elif card_payment == 0 and "Name of the Person" in ["Echs", "Pmjay"] then party_name = ["Echs", "Pmjay"]. else take the original party_name.
+
+- Implemented "GSTR1 ECHS & PMJAY" 2 ver.
+    - GST No.- "Swip Card", {"ECHS", "PMJAY"}, "CASH" (for rest of all names in party_name).
+    - Bill Value- Total amount after gst and discount.
+
+

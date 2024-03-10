@@ -950,7 +950,7 @@ class GSTR1Self(BaseTransformExcel):
         cls.filename_prefix = "GSTR1_Self_"
 
     def remove_first_digits(cls, inp: str):
-        idx= 0
+        idx = 0
 
         for c in inp:
             if not c.isdigit():
@@ -982,7 +982,7 @@ class GSTR1Self(BaseTransformExcel):
                     },
                     "Inv No.": inv_no,
                     "GST%": gst_percentage,
-                    "Party/Cash" : cls.remove_first_digits(row["PARTY"]),
+                    "Party/Cash": cls.remove_first_digits(row["PARTY"]),
                     "Amount": amount,
                     "CGST %": cgst_sgst_per,
                     "CGST Amt": cgst_sgst_amt,
@@ -1013,7 +1013,7 @@ class GSTR1Self(BaseTransformExcel):
                     continue
             except Exception as e:
                 continue
-            
+
             # set the invoice number for bill no
             if inv_no_getter.get(str(row["BILL NO"]).strip()) is None:
                 inv_no_getter[str(row["BILL NO"]).strip()] = inv_counter
@@ -1071,7 +1071,6 @@ class GSTR1Self(BaseTransformExcel):
         )
 
 
-
 class SMCGlobalShare(BaseTransformExcel):
     APP_NAME = "SMC GLOBAL / SHARE"
 
@@ -1081,10 +1080,10 @@ class SMCGlobalShare(BaseTransformExcel):
 
     def transform(cls, path: str, save=True):
         # skip 6 rows
-        df = pd.read_excel(path, skiprows= 13)
+        df = pd.read_excel(path, skiprows=13)
         rows_to_df = []
 
-        df = df[~df['Code'].str.startswith("Total Of(")]
+        df = df[~df["Code"].str.startswith("Total Of(")]
 
         filename = cls.get_filename_with_datetime(prefix=cls.filename_prefix)
         xl_save_path = os.path.join(cls.file_save_dir, filename)
@@ -1100,6 +1099,414 @@ class SMCGlobalShare(BaseTransformExcel):
         return dict(
             xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
+
+
+class GSTR1EchsPmjay(BaseTransformExcel):
+    APP_NAME = "GSTR1 ECHS / PMJAY"  # This will send to the display.html
+    CONFIG = "gstr1_echs_pmjay_config.json"
+
+    def __init__(cls, config: dict, *args, **kwargs) -> None:
+        cls.file_save_dir = "transformed"
+        cls.output_columns = config["output_columns"]
+        cls.default_output_row = config["default_output_row"]
+        cls.columns_to_sum = config["columns_to_sum"]
+        cls.perfix_for_totals = config["perfix_for_totals"]
+        cls.column_to_idx: dict = config["column_to_idx"]
+        cls.target_columns_index: list = config["target_columns_index"]
+
+        # changes every time
+        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
+        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
+        cls.calculate_igst = kwargs.get("calculate_igst", False)
+
+        # Mapping file
+        cls._mapping_df = kwargs.get("mapping_df", None)  # optional
+        cls.mapping_sheetname = config["mapping_sheetname"]
+
+    def transform_mapping(cls):
+        if cls._mapping_df is None:
+            return
+
+        df = cls._mapping_df.iloc[6:, 1:]
+        # Set the headers to be the values from the first row
+        new_headers = df.iloc[0]
+        df.columns = new_headers
+
+        # Reset the index
+        df.reset_index(drop=True, inplace=True)
+
+        cls._mapping_df = df
+
+    def is_present_in_mapping(cls, row):
+        if cls._mapping_df is None:
+            return cls.get(row, "Party/Cash")
+
+        inv_no = cls.get(row, "Inv No.")
+
+        if (
+            inv_no is None or str(inv_no).lower() == "nan"
+        ):  # if inv no not found in mapping return original party/cash
+            return cls.get(row, "Party/Cash")
+
+        if inv_no not in cls._mapping_df["Bill No."].values:
+            return cls.get(row, "Party/Cash")
+
+        filtered_row = cls._mapping_df[cls._mapping_df["Bill No."] == inv_no]
+        card_payment = filtered_row["CARD PAYMENT"]
+
+        if str(card_payment).lower() == "nan":
+            return cls.get(row, "Party/Cash")
+
+        if float(card_payment) > 0.0:
+            return "SWIP CARD"
+
+        if float(card_payment) == 0.0:
+            if str(filtered_row["Name of the Person"]).lower() in ["echs", "pmjay"]:
+                return filtered_row["Name of the Person"]
+            else:
+                # Take the original party name from row
+                return cls.get(row, "Party/Cash")
+
+        return f"NegValue<{inv_no}>"
+
+    def get_transformed_rows(cls, row, bill_no: str):
+        new_rows = []
+
+        cgst_sgst_per = float(row[cls.column_to_idx["SGST %"]])
+        igst_per = float(row[cls.column_to_idx["IGST %"]])
+        gst_percentage = int(cgst_sgst_per * 2)
+        amount = float(row.iloc[cls.column_to_idx["Amount"]])
+
+        if amount == 0.0:
+            return []
+
+        cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+        igst_amt = round(amount * igst_per / 100, 2)
+        discount = 0.0
+        total_amt = round(amount + (2 * cgst_sgst_amt) + igst_amt - discount, 2)
+        party_cash = cls.is_present_in_mapping(row)
+
+        new_row = cls.get_default_row_format(
+            {
+                **{
+                    tg: str(row.iloc[cls.column_to_idx[tg]]).strip()
+                    for tg in cls.target_columns_index
+                },
+                "Bill No.": bill_no,
+                "Party/Cash": party_cash,
+                "Qty": math.ceil(row[cls.column_to_idx["Qty"]]),
+                "Reg Type": "unregistered/consumer",
+                "Product's Name": f"Medicine {gst_percentage}%",
+                "GST%": gst_percentage,
+                "Amount": amount,
+                "CGST %": cgst_sgst_per,
+                "CGST Amt": cgst_sgst_amt,
+                "SGST %": cgst_sgst_per,
+                "SGST Amt": cgst_sgst_amt,
+                "IGST Amt": igst_amt,
+                "Discount %": discount,
+                "Total": total_amt,
+            }
+        )
+        new_rows.append(copy.deepcopy(new_row))
+
+        return new_rows
+
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
+        # drop the 1st empty column
+        # drop the 1st empty column
+        df = df.iloc[:, 1:]
+
+        cls.transform_mapping()
+
+        rows_to_df = []
+        bill_counter = cls.bill_no_suffix_counter - 1
+        last_row = None
+
+        # Iterate over rows
+        for _, row in df.iterrows():
+            # if gross total reached then break the loop
+
+            if str(row.iloc[1]).strip() == "Gross Total":
+                break
+
+            # if cell-0 is nan and we have last row data
+            if str(row.iloc[0]).strip() == "nan" and last_row is not None:
+                for copy_idx in [1, 2, 3, 4, 5, 6, 7]:
+                    row.iloc[copy_idx] = last_row.iloc[copy_idx]
+
+            # if the row does not match the following format= "<digit><dot>"
+            elif not str(row.iloc[0]).split(".")[0].strip().isdigit():
+                continue
+            else:
+                # digit case found
+                bill_counter += 1
+                last_row = copy.deepcopy(row)
+
+            new_tranformed_rows = cls.get_transformed_rows(
+                row,
+                bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}",
+            )
+
+            # if new rows added then only increase the bill counter
+            # there may be case where no rows were added because amount is 0
+            if len(new_tranformed_rows) > 0:
+                rows_to_df += new_tranformed_rows
+
+        filename = cls.get_filename_with_datetime(prefix="GSTR1EchsPmjay_")
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
+
+        result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+
+        # Get the xlsxwriter objects from the dataframe writer object.
+        worksheet = writer.sheets["Sheet1"]
+
+        no_of_row = worksheet.dim_rowmax
+        for col_to_sum in cls.columns_to_sum:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(col_to_sum) + 1
+            )  # offset of 1 for index to pos
+
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
+
+            worksheet.write_formula(index_of_sheet, formula)
+
+        if len(cls.columns_to_sum) > 0:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
+            )  # offset of 1 for index to pos
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
+
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            writer.close()
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
+
+class GSTR1Marg(BaseTransformExcel):
+    APP_NAME = "GSTR1 Marg"  # This will send to the display.html
+    CONFIG = "gstr1_marg_config.json"
+
+    def __init__(cls, config: dict, *args, **kwargs) -> None:
+        cls.file_save_dir = "transformed"
+        cls.output_columns = config["output_columns"]
+        cls.default_output_row = config["default_output_row"]
+        cls.columns_to_sum = config["columns_to_sum"]
+        cls.perfix_for_totals = config["perfix_for_totals"]
+        cls.column_to_idx: dict = config["column_to_idx"]
+        cls.target_columns_index: list = config["target_columns_index"]
+
+        # changes every time
+        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
+        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
+        cls.calculate_igst = kwargs.get("calculate_igst", False)
+
+        # Mapping file
+        cls._mapping_df = kwargs.get("mapping_df", None)  # optional
+        cls.mapping_sheetname = config["mapping_sheetname"]
+
+    def transform_mapping(cls):
+        if cls._mapping_df is None:
+            return
+
+        df = cls._mapping_df.iloc[6:, 1:]
+        # Set the headers to be the values from the first row
+        new_headers = df.iloc[0]
+        df.columns = new_headers
+
+        # Reset the index
+        df.reset_index(drop=True, inplace=True)
+
+        cls._mapping_df = df
+
+    def is_present_in_mapping(cls, row):
+        if cls._mapping_df is None:
+            return "CASH"
+
+        inv_no = cls.get(row, "Inv No.")
+
+        if (
+            inv_no is None or str(inv_no).lower() == "nan"
+        ):  # if inv no not found in mapping return original party/cash
+            return "CASH"
+
+        if inv_no not in cls._mapping_df["Bill No."].values:
+            return "CASH"
+
+        filtered_row = cls._mapping_df[cls._mapping_df["Bill No."] == inv_no]
+        card_payment = filtered_row["CARD PAYMENT"]
+
+        if str(card_payment).lower() == "nan":
+            return "CASH"
+
+        if float(card_payment) > 0.0:
+            return "SWIP CARD"
+
+        if float(card_payment) == 0.0:
+            if str(filtered_row["Name of the Person"]).lower() in ["echs", "pmjay"]:
+                return filtered_row["Name of the Person"]
+            else:
+                # Take the original party name from row
+                return "CASH"
+
+        return f"NegValue<{inv_no}>"
+
+    def get_transformed_rows(cls, row, bill_no: str, row_data_dict: dict):
+
+        amount = float(row.iloc[cls.column_to_idx["Amount"]])
+        if amount == 0.0:
+            return []
+
+        # set initial values for bill no
+        if row_data_dict.get(bill_no) is None:
+            gst_no = cls.is_present_in_mapping(row)
+            _row_data = cls.get_default_row_format(
+                {
+                    **{
+                        tg: str(row.iloc[cls.column_to_idx[tg]]).strip()
+                        for tg in cls.target_columns_index
+                    },
+                    "GST.No.": gst_no,
+                    "PARTY NAME": cls.get(row, "Party/Cash"),
+                    "BILL NO.": str(bill_no),
+                }
+            )
+        else:
+            _row_data = row_data_dict[bill_no]
+
+        cgst_sgst_per = float(row[cls.column_to_idx["SGST %"]])
+        gst_percentage = int(cgst_sgst_per * 2)
+        cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+
+        def round_and_diff(num):
+            rounded_num = round(num)
+            difference = rounded_num - num
+            return round(difference, 2)
+
+        def get_totalAmt_nd_roundOff():
+            amt = (
+                _row_data["GST 5%"]
+                + _row_data["CGST 2.5%"]
+                + _row_data["SGST 2.5%"]
+                + _row_data["GST 12%"]
+                + _row_data["CGST 6.0%"]
+                + _row_data["SGST 6.0%"]
+                + _row_data["GST 18%"]
+                + _row_data["CGST 9.0%"]
+                + _row_data["CGST 9.0%"]
+            )
+
+            return round(amt), round_and_diff(amt)
+
+        _row_data[f"CGST {cgst_sgst_per}%"] = cgst_sgst_amt
+        _row_data[f"SGST {cgst_sgst_per}%"] = cgst_sgst_amt
+        _row_data[f"GST {gst_percentage}%"] = amount
+        _row_data[f"BILL VALUE"], _row_data[f"Roundoff"] = get_totalAmt_nd_roundOff()
+        return copy.deepcopy(_row_data)
+
+    def transform(cls, path: str, save=True):
+        df = pd.read_excel(path)
+        # drop the 1st empty column
+        # drop the 1st empty column
+        df = df.iloc[:, 1:]
+
+        cls.transform_mapping()
+
+        rows_to_df = []
+        bill_counter = cls.bill_no_suffix_counter - 1
+        last_row = None
+
+        row_data_dict = dict()  # bill no: data
+        inv_no_list = []
+
+        # Iterate over rows
+        for _, row in df.iterrows():
+            # if gross total reached then break the loop
+
+            if str(row.iloc[1]).strip() == "Gross Total":
+                break
+
+            # if cell[0] is nan and we have last row data
+            if str(row.iloc[0]).strip() == "nan" and last_row is not None:
+                for copy_idx in [1, 2, 3, 4, 5, 6, 7]:
+                    row.iloc[copy_idx] = last_row.iloc[copy_idx]
+
+            # if the row does not match the following format= "<digit><dot>"
+            elif not str(row.iloc[0]).split(".")[0].strip().isdigit():
+                continue
+            else:
+                # digit case found
+                bill_counter += 1
+                last_row = copy.deepcopy(row)
+
+            bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}"
+
+            row_data_dict[bill_no] = cls.get_transformed_rows(
+                row,
+                bill_no=bill_no,
+                row_data_dict=row_data_dict,
+            )
+
+        # print(row_data_dict.keys())
+        filename = cls.get_filename_with_datetime(prefix="GSTR1Marg_")
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
+
+        rows_to_df = list(row_data_dict.values())
+        result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+
+        # Get the xlsxwriter objects from the dataframe writer object.
+        worksheet = writer.sheets["Sheet1"]
+
+        no_of_row = worksheet.dim_rowmax
+        for col_to_sum in cls.columns_to_sum:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(col_to_sum) + 1
+            )  # offset of 1 for index to pos
+
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
+
+            worksheet.write_formula(index_of_sheet, formula)
+
+        if len(cls.columns_to_sum) > 0:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
+            )  # offset of 1 for index to pos
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
+
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            writer.close()
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
+        )
+
 
 ## Sanity check functions
 def check_for_stock():
@@ -1232,5 +1639,27 @@ def check_for_SMCGlobalShare():
 
     obj.transform("../data/SMC-GLOBAL-SHARE.XLSx")
 
+
+def check_for_GSTR1Marg():
+    mapping_df = pd.read_excel(
+        "/home/akshat/Documents/projects/joshi-uncle/data/GSTR 1 ECHS -PMJAY/gstr1_echs_pmjay_mapping.xls"
+    )
+
+    default_config = GSTR1Marg.read_config(
+        os.path.join("excel_app", "config", "gstr1_marg_config.json")
+    )
+    bill_no_prefix = "JPS/23-24/"
+    bill_no_suffix_counter = 1701
+
+    excel_file = "/home/akshat/Documents/projects/joshi-uncle/data/GSTR 1 ECHS -PMJAY/gstr1_echs_pmjay.xls"
+    transform = GSTR1Marg(
+        default_config,
+        bill_no_prefix=bill_no_prefix,
+        bill_no_suffix_counter=bill_no_suffix_counter,
+        mapping_df=mapping_df,
+    )
+    data = transform.transform(excel_file, save=True)
+
+
 if __name__ == "__main__":
-    check_for_SMCGlobalShare()
+    check_for_GSTR1Marg()
