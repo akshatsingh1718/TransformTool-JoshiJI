@@ -5,8 +5,6 @@
     "GST.No.",
     "BILL VALUE",
 
-    "Nill Rated",
-
     "GST 0%",
     "CGST 0.0%",
     "SGST 0.0%",
@@ -24,23 +22,32 @@
     "SGST 9.0%",
 
     "Roundoff",
-    "Inv Date"
+    "Inv Date",
+    "Inv No.",
+    "Qty"
   ],
   "columns_to_sum": [
+    "GST 0%",
+    "CGST 0.0%",
+    "SGST 0.0%",
+
     "GST 5%",
     "CGST 2.5%",
     "SGST 2.5%",
+
     "GST 12%",
     "CGST 6.0%",
     "SGST 6.0%",
+    
     "GST 18%",
     "CGST 9.0%",
-    "CGST 9.0%",
+    "SGST 9.0%",
+    
     "Roundoff",
     "BILL VALUE"
   ],
   "perfix_for_totals": { "column": "BILL NO.", "label": "Grand Total" },
-  "target_columns_index": ["Inv Date"],
+  "target_columns_index": ["Inv Date", "Qty", "Inv No."],
   "column_to_idx": {
     "Party/Cash": 1,
     "Inv No.": 4,
@@ -53,7 +60,6 @@
     "Qty": 9
   },
   "default_output_row": {
-    "Nill Rated": 0.0,
     "CGST 0%": 0.0,
     "SGST 0%": 0.0,
 

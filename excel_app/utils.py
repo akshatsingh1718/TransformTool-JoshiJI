@@ -1375,10 +1375,15 @@ class GSTR1Marg(BaseTransformExcel):
         # amount = float(row.iloc[cls.column_to_idx["Amount"]])
         taxable_amt = float(row.iloc[cls.column_to_idx["Taxable Amount"]])
 
-        inv_no = cls.get(row, "Inv No.")
+        # inv_no = cls.get(row, "Inv No.")
+        # if cls.get(row, "Party/Cash").strip() == "PREMA BHATT":
+        #     print(cls.column_to_idx["Taxable Amount"])
+        #     print(taxable_amt)
+        #     print(row)
 
         if taxable_amt == 0.0:
             return None  # if taxable_amt if zero for any bill then return none
+
 
         # set initial values for bill no
         if row_data_dict.get(bill_no) is None:
