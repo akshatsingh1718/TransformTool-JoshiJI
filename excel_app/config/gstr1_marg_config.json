@@ -6,8 +6,10 @@
     "BILL VALUE",
 
     "Nill Rated",
-    "CGST 0%",
-    "SGST 0%",
+
+    "GST 0%",
+    "CGST 0.0%",
+    "SGST 0.0%",
 
     "GST 5%",
     "CGST 2.5%",
@@ -46,7 +48,8 @@
     "HSN Code": 8,
     "SGST %": 12,
     "IGST %": 16,
-    "Amount": 11,
+    "Amount": 10,
+    "Taxable Amount" : 11,
     "Qty": 9
   },
   "default_output_row": {
@@ -65,6 +68,10 @@
     "GST 18%": 0.0,
     "SGST 9.0%": 0.0,
     "CGST 9.0%": 0.0,
+
+    "GST 0%": 0.0,
+    "SGST 0.0%": 0.0,
+    "CGST 0.0%": 0.0,
 
     "GST.No.": ""
   },

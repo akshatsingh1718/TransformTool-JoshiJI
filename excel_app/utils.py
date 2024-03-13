@@ -30,10 +30,14 @@ class BaseTransformExcel:
         return f"{prefix}{formatted_datetime}{suffix}.{ext}"
 
     def get_default_row_format(cls, presets: dict) -> dict:
-        row_dict: dict = cls.default_output_row
 
+        # Here instead of default value prv row values is present
+        row_dict: dict = copy.deepcopy(cls._default_output_row)
+
+        # Iterate over output columns
         for col in cls.output_columns:
 
+            # set preset values defined overriding default values
             if col in presets.keys():
                 row_dict[col] = presets[col]
                 continue
@@ -218,7 +222,7 @@ class TransformExcelPurchase(BaseTransformExcel):
     def __init__(cls, config: dict) -> None:
         cls.output_columns = config["output_columns"]
         cls.gst_data = config["gst_data"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.target_columns_index = config["target_columns_index"]
 
@@ -377,7 +381,7 @@ class TransformExcelSale(BaseTransformExcel):
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.output_columns = config["output_columns"]
         cls.gst_data = config["gst_data"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.target_columns_index = config["target_columns_index"]
         cls.file_save_dir = "transformed"
@@ -612,7 +616,7 @@ class TransformExcelGST(BaseTransformExcel):
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
         cls.output_columns = config["output_columns"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.column_to_idx: dict = config["column_to_idx"]
@@ -792,7 +796,7 @@ class TransformExcelJJOnly(BaseTransformExcel):
         # Invoice No: <prefix><counter>
 
         cls.output_columns = config["output_columns"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.target_columns_index = config["target_columns_index"]
         cls.file_save_dir = "transformed"
@@ -934,7 +938,7 @@ class GSTR1Self(BaseTransformExcel):
 
     def __init__(cls, config, **kwargs):
         cls.output_columns = config["output_columns"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.direct_target_cols = config["direct_target_cols"]
         cls.perfix_for_totals = config["perfix_for_totals"]
@@ -1108,7 +1112,7 @@ class GSTR1EchsPmjay(BaseTransformExcel):
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
         cls.output_columns = config["output_columns"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.column_to_idx: dict = config["column_to_idx"]
@@ -1305,7 +1309,7 @@ class GSTR1Marg(BaseTransformExcel):
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
         cls.output_columns = config["output_columns"]
-        cls.default_output_row = config["default_output_row"]
+        cls._default_output_row = config["default_output_row"]
         cls.columns_to_sum = config["columns_to_sum"]
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.column_to_idx: dict = config["column_to_idx"]
@@ -1364,16 +1368,21 @@ class GSTR1Marg(BaseTransformExcel):
                 # Take the original party name from row
                 return "CASH"
 
-        return f"NegValue<{inv_no}>"
+        return f"NegValue<{card_payment}>"
 
     def get_transformed_rows(cls, row, bill_no: str, row_data_dict: dict):
 
-        amount = float(row.iloc[cls.column_to_idx["Amount"]])
-        if amount == 0.0:
-            return []
+        # amount = float(row.iloc[cls.column_to_idx["Amount"]])
+        taxable_amt = float(row.iloc[cls.column_to_idx["Taxable Amount"]])
+
+        inv_no = cls.get(row, "Inv No.")
+
+        if taxable_amt == 0.0:
+            return None  # if taxable_amt if zero for any bill then return none
 
         # set initial values for bill no
         if row_data_dict.get(bill_no) is None:
+
             gst_no = cls.is_present_in_mapping(row)
             _row_data = cls.get_default_row_format(
                 {
@@ -1386,12 +1395,17 @@ class GSTR1Marg(BaseTransformExcel):
                     "BILL NO.": str(bill_no),
                 }
             )
+
         else:
             _row_data = row_data_dict[bill_no]
 
         cgst_sgst_per = float(row[cls.column_to_idx["SGST %"]])
         gst_percentage = int(cgst_sgst_per * 2)
-        cgst_sgst_amt = round(amount * cgst_sgst_per / 100, 2)
+        cgst_sgst_amt = round(taxable_amt * cgst_sgst_per / 100, 2)
+
+        _row_data[f"CGST {cgst_sgst_per}%"] += cgst_sgst_amt
+        _row_data[f"SGST {cgst_sgst_per}%"] += cgst_sgst_amt
+        _row_data[f"GST {gst_percentage}%"] += taxable_amt
 
         def round_and_diff(num):
             rounded_num = round(num)
@@ -1413,10 +1427,8 @@ class GSTR1Marg(BaseTransformExcel):
 
             return round(amt), round_and_diff(amt)
 
-        _row_data[f"CGST {cgst_sgst_per}%"] = cgst_sgst_amt
-        _row_data[f"SGST {cgst_sgst_per}%"] = cgst_sgst_amt
-        _row_data[f"GST {gst_percentage}%"] = amount
         _row_data[f"BILL VALUE"], _row_data[f"Roundoff"] = get_totalAmt_nd_roundOff()
+
         return copy.deepcopy(_row_data)
 
     def transform(cls, path: str, save=True):
@@ -1436,6 +1448,7 @@ class GSTR1Marg(BaseTransformExcel):
 
         # Iterate over rows
         for _, row in df.iterrows():
+            # row = row.tolist()
             # if gross total reached then break the loop
 
             if str(row.iloc[1]).strip() == "Gross Total":
@@ -1456,11 +1469,18 @@ class GSTR1Marg(BaseTransformExcel):
 
             bill_no = f"{cls.bill_no_prefix}{bill_counter:05d}"
 
+            # if bill_no == "JSP/23/23/02018":
+            #     print("------------ JSP/23/23/02018 is going")
+            #     print(row_data_dict["JSP/23/23/02018"] if row_data_dict.get("JSP/23/23/02018") is not None else "None")
+
             row_data_dict[bill_no] = cls.get_transformed_rows(
                 row,
                 bill_no=bill_no,
                 row_data_dict=row_data_dict,
             )
+
+            if row_data_dict[bill_no] is None:
+                del row_data_dict[bill_no]
 
         # print(row_data_dict.keys())
         filename = cls.get_filename_with_datetime(prefix="GSTR1Marg_")
@@ -1472,7 +1492,11 @@ class GSTR1Marg(BaseTransformExcel):
 
         writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
 
+        # print(row_data_dict)
+
         rows_to_df = list(row_data_dict.values())
+        # rows_to_df = [value for value in row_data_dict.values() if value is not None]
+
         result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
 
         # Convert the dataframe to an XlsxWriter Excel object.
@@ -1648,8 +1672,8 @@ def check_for_GSTR1Marg():
     default_config = GSTR1Marg.read_config(
         os.path.join("excel_app", "config", "gstr1_marg_config.json")
     )
-    bill_no_prefix = "JPS/23-24/"
-    bill_no_suffix_counter = 1701
+    bill_no_prefix = "JSP/23/23/"
+    bill_no_suffix_counter = 123
 
     excel_file = "/home/akshat/Documents/projects/joshi-uncle/data/GSTR 1 ECHS -PMJAY/gstr1_echs_pmjay.xls"
     transform = GSTR1Marg(
