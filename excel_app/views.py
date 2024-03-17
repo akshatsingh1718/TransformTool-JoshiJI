@@ -14,6 +14,7 @@ from .utils import (
     SMCGlobalShare,
     GSTR1EchsPmjay,
     GSTR1Marg,
+    GSTR1WQty_Extended,
     BaseTransformExcel,
 )
 import os
@@ -106,7 +107,7 @@ def upload_excel(request):
                 mapping_df = None
 
             default_config = TransformExcelGST.read_config(
-                os.path.join("excel_app", "config", "gst_config.json")
+                os.path.join("excel_app", "config", "gstWithQty_config.json")
             )
             bill_no_prefix = request.POST["bill_no_prefix"]
             bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
@@ -182,9 +183,6 @@ def upload_excel(request):
             transform = SMCGlobalShare()
             heading = transform.APP_NAME
 
-
-            transform-gstr1-echs-pmjay
-
         elif change_format == "transform-gstr1_echs_pmjay":
             if request.FILES.get("mapping_file", None):
                 mapping_df = pd.read_excel(request.FILES["mapping_file"])
@@ -225,6 +223,25 @@ def upload_excel(request):
                 mapping_df=mapping_df,
             )
             heading = GSTR1Marg.APP_NAME
+        
+        elif change_format == GSTR1WQty_Extended.HTML_ID:
+            if request.FILES.get("mapping_file", None):
+                mapping_df = pd.read_excel(request.FILES["mapping_file"])
+            else:
+                mapping_df = None
+
+            default_config = BaseTransformExcel.read_config(os.path.join("excel_app", "config", "gstWithQtySum_config.json"))
+            bill_no_prefix = request.POST["bill_no_prefix"]
+            bill_no_suffix_counter = int(request.POST["bill_no_suffix_counter"])
+
+            transform = GSTR1WQty_Extended(
+                default_config,
+                bill_no_prefix=bill_no_prefix,
+                bill_no_suffix_counter=bill_no_suffix_counter,
+                mapping_df=mapping_df,
+            )
+
+            heading = GSTR1WQty_Extended.APP_NAME
         
 
         data = transform.transform(excel_file, save=True)

@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import json
 import math
-from typing import List, Union
+from typing import List
 
 import warnings
 
@@ -60,61 +60,6 @@ class BaseTransformExcel:
             return float(row[dcol])
 
         return row[cls.column_to_idx[column]]
-
-    def post_processing(
-        cls, df: pd.DataFrame, save=True, name_prefix: str = None, *args, **kwargs
-    ):
-        re_arrange_cols = kwargs.get("re_arrange_cols", False)
-
-        if save and name_prefix is None:
-            raise Exception("Please provide name prefix for xl file")
-
-        filename = cls.get_filename_with_datetime(prefix=name_prefix)
-        xl_save_path = os.path.join(cls.file_save_dir, filename)
-
-        # if dir not exist then create one
-        if save and (not os.path.isdir(cls.file_save_dir)):
-            os.makedirs(cls.file_save_dir, exist_ok=True)
-
-        if re_arrange_cols and cls.output_columns:
-            df = df.reindex(cls.output_columns, axis=1)
-
-        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
-
-        # Convert the dataframe to an XlsxWriter Excel object.
-        df.to_excel(writer, sheet_name="Sheet1", index=False)
-
-        # Get the xlsxwriter objects from the dataframe writer object.
-        worksheet = writer.sheets["Sheet1"]
-
-        if len(cls.columns_to_sum) > 0:
-            no_of_row = worksheet.dim_rowmax
-            for col_to_sum in cls.columns_to_sum:
-                col_letter = get_column_letter(
-                    df.columns.get_loc(col_to_sum) + 1
-                )  # offset of 1 for index to pos
-
-                index_of_sheet = f"{col_letter}{no_of_row + 2}"
-                formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
-
-                worksheet.write_formula(index_of_sheet, formula)
-
-            col_letter = get_column_letter(
-                df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
-            )  # offset of 1 for index to pos
-            index_of_sheet = f"{col_letter}{no_of_row + 2}"
-            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
-
-        if save:
-            print(f"File saved to: {xl_save_path}")
-            writer.close()
-
-        return dict(
-            xl_save_path=xl_save_path,
-            save_dir=cls.file_save_dir,
-            xl_file_name=filename,
-            df=df,
-        )
 
     @staticmethod
     def strip_column_names(df):
@@ -666,7 +611,7 @@ class TransformStockExcel(BaseTransformExcel):
 
 class TransformExcelGST(BaseTransformExcel):
     NAME = "GSTR1 With Qty"
-    CONFIG = "gstWithQty_config.json"
+    CONFIG = "gst_config.json"
 
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
@@ -676,7 +621,6 @@ class TransformExcelGST(BaseTransformExcel):
         cls.perfix_for_totals = config["perfix_for_totals"]
         cls.column_to_idx: dict = config["column_to_idx"]
         cls.target_columns_index: list = config["target_columns_index"]
-        cls.xl_name_prefix: str = config["xl_name_prefix"]
 
         # changes every time
         cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
@@ -757,7 +701,7 @@ class TransformExcelGST(BaseTransformExcel):
 
         return new_rows
 
-    def transform(cls, path: str, save=True):
+    def transform(cls, path: str, save=True, return_only_xl=False):
         df = pd.read_excel(path)
         # drop the 1st empty column
         # drop the 1st empty column
@@ -801,8 +745,48 @@ class TransformExcelGST(BaseTransformExcel):
 
         result_df = pd.DataFrame(rows_to_df, columns=cls.output_columns)
 
-        return cls.post_processing(
-            result_df, save=save, name_prefix=cls.xl_name_prefix, re_arrange_cols=True
+        filename = cls.get_filename_with_datetime(prefix="GSTR1_W_Qty_")
+        xl_save_path = os.path.join(cls.file_save_dir, filename)
+
+        # if dir not exist then create one
+        if not os.path.isdir(cls.file_save_dir):
+            os.makedirs(cls.file_save_dir, exist_ok=True)
+
+        writer = pd.ExcelWriter(xl_save_path, engine="xlsxwriter")
+
+        # Convert the dataframe to an XlsxWriter Excel object.
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+
+        if return_only_xl:  # this is for extended
+            return result_df
+
+        # Get the xlsxwriter objects from the dataframe writer object.
+        worksheet = writer.sheets["Sheet1"]
+
+        no_of_row = worksheet.dim_rowmax
+        for col_to_sum in cls.columns_to_sum:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(col_to_sum) + 1
+            )  # offset of 1 for index to pos
+
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            formula = f"=SUM({col_letter}2:{col_letter}{no_of_row + 1})"
+
+            worksheet.write_formula(index_of_sheet, formula)
+
+        if len(cls.columns_to_sum) > 0:
+            col_letter = get_column_letter(
+                result_df.columns.get_loc(cls.perfix_for_totals["column"]) + 1
+            )  # offset of 1 for index to pos
+            index_of_sheet = f"{col_letter}{no_of_row + 2}"
+            worksheet.write_string(index_of_sheet, cls.perfix_for_totals["label"])
+
+        if save:
+            print(f"File saved to: {xl_save_path}")
+            writer.close()
+
+        return dict(
+            xl_save_path=xl_save_path, save_dir=cls.file_save_dir, xl_file_name=filename
         )
 
 
@@ -1544,81 +1528,56 @@ class GSTR1Marg(BaseTransformExcel):
 
 
 class GSTR1WQty_Extended(BaseTransformExcel):
-    HTML_ID = "transform-gstr1_w_qty_sum"
-    APP_NAME = "GSTR1 With Qty (sum)"  # This will send to the display.html
-    CONFIG = None
+    def __init__(self) -> None:
+        pass
 
-    def __init__(cls, config: dict, *args, **kwargs) -> None:
-        cls.file_save_dir = "transformed"
+    def transform(cls, path: str, save=True):
 
-        cls.output_columns = config["output_columns"]
-        cls._default_output_row = config["default_output_row"]
-        cls.columns_to_sum = config["columns_to_sum"]
-        cls.perfix_for_totals = config["perfix_for_totals"]
-        cls.column_to_idx: dict = config["column_to_idx"]
-        cls.target_columns_index: list = config["target_columns_index"]
-        cls.xl_name_prefix: str = config["xl_name_prefix"]
-
-        # changes every time
-        cls.bill_no_prefix = kwargs.get("bill_no_prefix", None)
-        cls.bill_no_suffix_counter = kwargs.get("bill_no_suffix_counter", None)
-        cls.calculate_igst = kwargs.get("calculate_igst", False)
-
-        # pre transformation
-        cls._gst_w_qty_transformation = TransformExcelGST(
-            config,
-             *args, **kwargs
-        )
-
-    def preprocess_df(cls, df: Union[str, pd.DataFrame]) -> pd.DataFrame:
-        return cls._gst_w_qty_transformation.transform(df, save=False)["df"]
-
-    def transform(cls, df: str, save=True):
-
-        df = cls.preprocess_df(df)
-        print(f"After preprocessing: {df.shape}")
-
-        # sort the values 
-        df = df.sort_values(by=['Inv Date', "Product's Name", "Party/Cash"], ascending=False)
-
-
-        df = df if isinstance(df, pd.DataFrame) else pd.read_excel(df)
+        df = path if isinstance(path, pd.DataFrame) else pd.read_excel(path)
 
         # Step 1: Filter distinct values for "Inv Date" column
         distinct_dates = df["Inv Date"].unique()
 
         # Initialize an empty DataFrame to store the final result
         result_df = pd.DataFrame()
-        bill_counter = cls.bill_no_suffix_counter
-
 
         # Iterate over distinct dates
         for date in distinct_dates:
             # Filter DataFrame for the current date
             filtered_df = df[df["Inv Date"] == date]
 
-            # Step 4: Filter distinct values (eg Medicine 5%, Medicine 18%) for "Product's Name" column
-            distinct_products = filtered_df["Product's Name"].unique()
-            # Iterate over distinct products
-            for product in distinct_products:
-                # Filter DataFrame for the current product
-                filtered_df2 = filtered_df[filtered_df["Product's Name"] == product]
+            if date == "01/02/2024":
+                print("yes")
 
-                # Change the normal party name to cash
-                filtered_df2["Party/Cash"] = filtered_df2["Party/Cash"].apply(
-                    lambda x: (
-                        x
-                        if str(x).lower().strip() in ["echs", "pmjay", "swip card"]
-                        else "CASH"
-                    )
-                )
+            # Step 2: Filter distinct values for "Party/Cash" column
+            distinct_parties = filtered_df["Party/Cash"].unique()
 
-                # Step 2: Filter distinct values for "Party/Cash" column
-                distinct_parties = filtered_df2["Party/Cash"].unique()
+            # Initialize an empty DataFrame to store intermediate results
+            filter_df3 = pd.DataFrame()
 
-                # Iterate over distinct parties
-                for party in distinct_parties:
-                    filtered_df3 = filtered_df2[filtered_df2["Party/Cash"] == party]
+            # Iterate over distinct parties
+            for party in distinct_parties:
+                filtered_df2 = filtered_df[filtered_df["Party/Cash"] == party]
+
+                # print(str(party).lower().strip())
+                # Step 3: Check conditions for "Party/Cash"
+                if str(party).lower().strip() in ["echs", "pmjay", "swip card"]:
+                    # Filter DataFrame for the current party
+                    party_name = party
+                    print(party_name)
+                else:
+                    # Filter DataFrame for "CASH"
+                    party_name = "CASH"
+
+                # Step 4: Filter distinct values for "Product's Name" column
+                distinct_products = filtered_df2["Product's Name"].unique()
+
+                # Iterate over distinct products (eg Medicine 5%, Medicine 18%)
+                for product in distinct_products:
+                    # Filter DataFrame for the current product
+                    filtered_df3 = filtered_df2[
+                        filtered_df2["Product's Name"] == product
+                    ]
 
                     # Sum the int and float values
                     sums = (
@@ -1631,22 +1590,22 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                     df_sums = pd.DataFrame(
                         {
                             **sums,
-                            "Bill No.": f"{cls.bill_no_prefix}{bill_counter:05d}",
+                            "Party/Cash": party_name,
                             **{
                                 s: filtered_df3[s].iloc[0]
                                 for s in [
-                                    "Party/Cash",
                                     "Product's Name",
                                     "State",
                                     "Party's GST",
+                                    "Bill No.",
                                     "Inv No.",
                                     "Inv Date",
                                     "HSN Code",
                                     "Reg Type",
                                     "Place of Supply",
-                                    "Country",
+                                    "Country", 
                                     "Consignee State",
-                                    "Consignee GST",
+                                    "Consignee GST"
                                 ]
                             },
                         },
@@ -1656,17 +1615,11 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                     # Append the DataFrame to result_df
                     # result_df = result_df.append(df_sums, ignore_index=True)
                     result_df = pd.concat([result_df, df_sums], ignore_index=True)
-                    # increment bill no
-                    bill_counter += 1
 
-        res = cls.post_processing(df=result_df, save=save, name_prefix=cls.xl_name_prefix, re_arrange_cols=True)
+        result_df.to_excel("./transformed/test.xlsx", index=False)
+        print("transformed/test.xlsx")
 
-        print(f"After preprocessing: {res['df'].shape}")
-
-        return res
-        # if save:
-        #     result_df.to_excel(cls.xl_name_prefix, index=False)
-        # return result_df
+        return result_df
 
 
 ## Sanity check functions
@@ -1824,18 +1777,22 @@ def check_for_GSTR1Marg():
 
 def check_for_gstWQty_extented():
     default_config = TransformExcelGST.read_config(
-        os.path.join("excel_app", "config", "gstWithQtySum_config.json")
+        os.path.join("excel_app", "config", "gst_config.json")
     )
     bill_no_prefix = "JPS/23/24/"
     bill_no_suffix_counter = 1546
 
-    obj2 = GSTR1WQty_Extended(
+    obj = TransformExcelGST(
         default_config,
         bill_no_prefix=bill_no_prefix,
         bill_no_suffix_counter=bill_no_suffix_counter,
         mapping_df=pd.read_excel("../data/gstr1_w_qty_mapping.xls"),
     )
-    obj2.transform("../data/gstr1_w_qty.xls")
+
+    df = obj.transform("../data/gstr1_w_qty.xls", return_only_xl=True)
+
+    obj2 = GSTR1WQty_Extended()
+    obj2.transform(df)
 
 
 if __name__ == "__main__":

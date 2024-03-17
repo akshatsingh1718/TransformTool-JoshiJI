@@ -547,8 +547,6 @@
       </div>
       <!-- smc_global_share ends here-->
 
-
-
       <!-- "GSTR1 ECHS / PMJAY" Starts here -->
       <div class="p-4 sm:w-full md:w-1/2 lg:w-1/3">
         <div class="flex rounded-lg h-full bg-gray-100 p-8 flex-col">
@@ -611,7 +609,6 @@
       </div>
       <!-- "GSTR1 ECHS / PMJAY" ends here -->
 
-
       <!-- "GSTR1 Marg" Starts here -->
       <div class="p-4 sm:w-full md:w-1/2 lg:w-1/3">
         <div class="flex rounded-lg h-full bg-gray-100 p-8 flex-col">
@@ -673,6 +670,69 @@
         </div>
       </div>
       <!-- "GSTR1 Marg" ends here -->
+
+      <!-- "GSTR1 With Qty (Sum)" Starts here -->
+      <div class="p-4 sm:w-full md:w-1/2 lg:w-1/3">
+        <div class="flex rounded-lg h-full bg-gray-100 p-8 flex-col">
+          <div class="flex items-center mb-3">
+            
+            <div
+              class="w-8 h-8 mr-3 inline-flex items-center justify-center rounded-full bg-indigo-500 text-white flex-shrink-0"
+              >
+              <svg
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+              >
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+              </svg>
+            </div>
+            <h2 class="text-gray-900 text-lg title-font font-medium">
+              GSTR1 With Qty (Sum)
+            </h2>
+          </div>
+
+            <form action="{% url "upload_excel" %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input 
+                  type="hidden"
+                  value="transform-gstr1_w_qty_sum" 
+                  name="change_format" 
+                />
+
+                <input type="file"
+                title="Upload excel file"
+                name="excel_file"
+                required="required">
+
+                <div class="my-4">
+                <label class="block pb-2 text-sm font-medium text-gray-900" for="file_input">Upload Mapping File</label>
+                <input name="mapping_file" class="block w-full text-sm text-gray-900 cursor-pointer" aria-describedby="file_input_help" id="file_input" type="file">
+                </div>
+
+
+                <div class="relative mt-2 w-full">
+                  <input name="bill_no_prefix" type="text" id="floating_gst_bill_no_prefix_3" class="rounded-t-lg px-2.5 pb-2.5 pt-5 w-full text-sm text-gray-900 bg-gray-50 border-0 border-b-2 border-gray-300 appearance-none  focus:outline-none focus:ring-0 focus:border-blue-600 peer" placeholder=" " />
+                  <label for="floating_gst_bill_no_prefix_3" class="absolute text-sm text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] start-2.5 peer-focus:text-blue-600 peer-focus:dark:text-blue-500 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">Bill no prefix (eg. JPS/23-24/)</label>
+                </div>
+
+                <div class="relative  mt-2 w-full">
+                  <input name="bill_no_suffix_counter" type="text" id="floating_gst_bill_no_suffix_3" class=" rounded-t-lg px-2.5 pb-2.5 pt-5 w-full text-sm text-gray-900 bg-gray-50 border-0 border-b-2 border-gray-300 appearance-none  focus:outline-none focus:ring-0 focus:border-blue-600 peer" placeholder=" " />
+                  <label for="floating_gst_bill_no_suffix_3" class="absolute text-sm text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] start-2.5 peer-focus:text-blue-600 peer-focus:dark:text-blue-500 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">Bill no suffix digit (eg. 5983)</label>
+              </div>
+
+                <button class="text-white bg-indigo-500 border-0 py-2 px-6 mt-3 w-full">
+                    Transform
+                </button>
+            </form>
+        </div>
+      </div>
+      <!-- "GSTR1 With Qty (Sum)" ends here -->
+
 
 
     </div>

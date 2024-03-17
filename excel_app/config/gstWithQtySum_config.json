@@ -1,4 +1,5 @@
 {
+  "xl_name_prefix" : "GST_W_Qty_Sum_",
   "output_columns": [
     "Bill No.",
     "Inv No.",
