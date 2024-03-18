@@ -1565,10 +1565,7 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         cls.calculate_igst = kwargs.get("calculate_igst", False)
 
         # pre transformation
-        cls._gst_w_qty_transformation = TransformExcelGST(
-            config,
-             *args, **kwargs
-        )
+        cls._gst_w_qty_transformation = TransformExcelGST(config, *args, **kwargs)
 
     def preprocess_df(cls, df: Union[str, pd.DataFrame]) -> pd.DataFrame:
         return cls._gst_w_qty_transformation.transform(df, save=False)["df"]
@@ -1578,9 +1575,10 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         df = cls.preprocess_df(df)
         print(f"After preprocessing: {df.shape}")
 
-        # sort the values 
-        df = df.sort_values(by=['Inv Date', "Product's Name", "Party/Cash"], ascending=False)
-
+        # sort the values
+        df = df.sort_values(
+            by=["Inv Date", "Product's Name", "Party/Cash"], ascending=False
+        )
 
         df = df if isinstance(df, pd.DataFrame) else pd.read_excel(df)
 
@@ -1590,12 +1588,20 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         # Initialize an empty DataFrame to store the final result
         result_df = pd.DataFrame()
         bill_counter = cls.bill_no_suffix_counter
-
+        prv_bill_no = None
 
         # Iterate over distinct dates
         for date in distinct_dates:
             # Filter DataFrame for the current date
             filtered_df = df[df["Inv Date"] == date]
+
+            map_BillNo_to_partyCash = {
+                "cash": None,
+                "echs": None,
+                "pmjay": None,
+                "swip card": None,
+                "shubhanu eye hospital": None,
+            }
 
             # Step 4: Filter distinct values (eg Medicine 5%, Medicine 18%) for "Product's Name" column
             distinct_products = filtered_df["Product's Name"].unique()
@@ -1605,10 +1611,12 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                 filtered_df2 = filtered_df[filtered_df["Product's Name"] == product]
 
                 # Change the normal party name to cash
+                filtered_df2["Party/Cash Copy"] = filtered_df2["Party/Cash"]
                 filtered_df2["Party/Cash"] = filtered_df2["Party/Cash"].apply(
                     lambda x: (
                         x
-                        if str(x).lower().strip() in ["echs", "pmjay", "swip card"]
+                        if str(x).lower().strip()
+                        in ["echs", "pmjay", "swip card", "shubhanu eye hospital"]
                         else "CASH"
                     )
                 )
@@ -1622,19 +1630,43 @@ class GSTR1WQty_Extended(BaseTransformExcel):
 
                     # Sum the int and float values
                     sums = (
-                        filtered_df3.select_dtypes(include=["int", "float"])
+                        # filtered_df3.select_dtypes(include=["int", "float"])
+                        filtered_df3[[
+                            "Qty", "Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"
+                        ]]
                         .sum()
                         .to_dict()
                     )
+
+                    # Join all elements to form a single string
+                    narration = ", ".join(
+                        "("
+                        + filtered_df3["Bill No."]
+                        + ", "
+                        + filtered_df3["Party/Cash Copy"]
+                        + ")"
+                    )
+
+                    _temp_bill_counter = map_BillNo_to_partyCash.get(party)
+                    if _temp_bill_counter is None:
+                        _temp_bill_counter = bill_counter
+                        map_BillNo_to_partyCash[party] = _temp_bill_counter
+                        bill_counter += 1
 
                     # Step 5: Create a DataFrame from sums and strings dictionaries
                     df_sums = pd.DataFrame(
                         {
                             **sums,
-                            "Bill No.": f"{cls.bill_no_prefix}{bill_counter:05d}",
+                            "Bill No.": f"{cls.bill_no_prefix}{_temp_bill_counter :05d}",
+                            "Narration": narration,
                             **{
                                 s: filtered_df3[s].iloc[0]
                                 for s in [
+                                    "GST%",	
+                                    "CGST %",
+                                    "SGST %",
+                                    "Rate",
+                                    "Discount %",
                                     "Party/Cash",
                                     "Product's Name",
                                     "State",
@@ -1653,13 +1685,26 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                         index=[0],
                     )
 
+                    # # increment ! when prv_bill_no does not matches current bill no
+                    # if prv_bill_no !=  str(filtered_df3['Bill No.'].iloc[0]):
+                    #     # increment bill no
+                    #     bill_counter += 1
+
+                    prv_bill_no = filtered_df3["Bill No."].iloc[0]
+
                     # Append the DataFrame to result_df
                     # result_df = result_df.append(df_sums, ignore_index=True)
                     result_df = pd.concat([result_df, df_sums], ignore_index=True)
-                    # increment bill no
-                    bill_counter += 1
 
-        res = cls.post_processing(df=result_df, save=save, name_prefix=cls.xl_name_prefix, re_arrange_cols=True)
+        # sort the values
+        result_df = result_df.sort_values(by=["Bill No."], ascending=False)
+
+        res = cls.post_processing(
+            df=result_df,
+            save=save,
+            name_prefix=cls.xl_name_prefix,
+            re_arrange_cols=True,
+        )
 
         print(f"After preprocessing: {res['df'].shape}")
 

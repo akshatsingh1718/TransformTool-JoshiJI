@@ -24,7 +24,8 @@
     "Place of Supply",
     "Country",
     "Consignee State",
-    "Consignee GST"
+    "Consignee GST",
+    "Narration"
   ],
   "columns_to_sum": ["Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"],
   "perfix_for_totals": { "column": "Party/Cash", "label": "Total" },
