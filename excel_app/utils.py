@@ -1641,7 +1641,7 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                     # Join all elements to form a single string
                     narration = ", ".join(
                         "("
-                        + filtered_df3["Bill No."]
+                        + filtered_df3["Inv No."]
                         + ", "
                         + filtered_df3["Party/Cash Copy"]
                         + ")"
