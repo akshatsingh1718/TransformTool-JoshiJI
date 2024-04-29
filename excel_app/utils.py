@@ -711,7 +711,9 @@ class TransformExcelGST(BaseTransformExcel):
                 return True
         return False
 
-    def get_transformed_rows(cls, row, bill_no: str):
+    def get_transformed_rows(cls, row, bill_no: str, *args, **kwargs):
+
+        roundoff_qty = kwargs.get("roundoff_qty", True)
         new_rows = []
 
         cgst_sgst_per = float(row[cls.column_to_idx["SGST %"]])
@@ -731,6 +733,8 @@ class TransformExcelGST(BaseTransformExcel):
             if cls.is_present_in_mapping(value_to_find=cls.get(row, "Inv No."))
             else cls.get(row, "Party/Cash")
         )
+
+        qty = math.ceil(row[cls.column_to_idx["Qty"]]) if roundoff_qty else row[cls.column_to_idx["Qty"]]
         new_row = cls.get_default_row_format(
             {
                 **{
@@ -739,7 +743,7 @@ class TransformExcelGST(BaseTransformExcel):
                 },
                 "Bill No.": bill_no,
                 "Party/Cash": party_cash,
-                "Qty": math.ceil(row[cls.column_to_idx["Qty"]]),
+                "Qty": qty,
                 "Reg Type": "unregistered/consumer",
                 "Product's Name": f"Medicine {gst_percentage}%",
                 "GST%": gst_percentage,
@@ -757,7 +761,7 @@ class TransformExcelGST(BaseTransformExcel):
 
         return new_rows
 
-    def transform(cls, path: str, save=True):
+    def transform(cls, path: str, save=True, *args, **kwargs):
         df = pd.read_excel(path)
         # drop the 1st empty column
         # drop the 1st empty column
@@ -792,6 +796,8 @@ class TransformExcelGST(BaseTransformExcel):
             new_tranformed_rows = cls.get_transformed_rows(
                 row,
                 bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}",
+                *args,
+                **kwargs
             )
 
             # if new rows added then only increase the bill counter
@@ -1568,7 +1574,7 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         cls._gst_w_qty_transformation = TransformExcelGST(config, *args, **kwargs)
 
     def preprocess_df(cls, df: Union[str, pd.DataFrame]) -> pd.DataFrame:
-        return cls._gst_w_qty_transformation.transform(df, save=False)["df"]
+        return cls._gst_w_qty_transformation.transform(df, save=False, roundoff_qty=False)["df"]
 
     def transform(cls, df: str, save=True):
 
@@ -1638,9 +1644,9 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                         .sum()
                         .to_dict()
                     )
-                    print("========================================================")
-                    print(f"{date=} {product=} {party=}")
-                    print(sums)
+                    # print("========================================================")
+                    # print(f"{date=} {product=} {party=}")
+                    # print(sums)
 
 
                     # Join all elements to form a single string
@@ -1702,7 +1708,7 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                     result_df = pd.concat([result_df, df_sums], ignore_index=True)
 
         # sort the values
-        result_df = result_df.sort_values(by=["Bill No."], ascending=False)
+        result_df = result_df.sort_values(by=["Bill No."], ascending=True)
 
         res = cls.post_processing(
             df=result_df,
