@@ -77,3 +77,10 @@
 
   - else "Party/Cash" == {All other names}:
     "Party/Cash" = "CASH"
+
+
+# Work for 29-Apr-24
+
+- In transform-gstr1_w_qty_sum:
+  - [ok] Assign the first bill with the first date of invoice date.
+  - Do not round off the Qty col.

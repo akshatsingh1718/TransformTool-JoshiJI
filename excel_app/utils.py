@@ -1546,7 +1546,7 @@ class GSTR1Marg(BaseTransformExcel):
 class GSTR1WQty_Extended(BaseTransformExcel):
     HTML_ID = "transform-gstr1_w_qty_sum"
     APP_NAME = "GSTR1 With Qty (sum)"  # This will send to the display.html
-    CONFIG = None
+    CONFIG = "gstWithQtySum_config.json"
 
     def __init__(cls, config: dict, *args, **kwargs) -> None:
         cls.file_save_dir = "transformed"
@@ -1577,7 +1577,8 @@ class GSTR1WQty_Extended(BaseTransformExcel):
 
         # sort the values
         df = df.sort_values(
-            by=["Inv Date", "Product's Name", "Party/Cash"], ascending=False
+            # by=["Inv Date", "Product's Name", "Party/Cash"], ascending=False
+            by=["Inv Date", "Product's Name", "Party/Cash"], ascending=True
         )
 
         df = df if isinstance(df, pd.DataFrame) else pd.read_excel(df)
@@ -1637,6 +1638,10 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                         .sum()
                         .to_dict()
                     )
+                    print("========================================================")
+                    print(f"{date=} {product=} {party=}")
+                    print(sums)
+
 
                     # Join all elements to form a single string
                     narration = ", ".join(
