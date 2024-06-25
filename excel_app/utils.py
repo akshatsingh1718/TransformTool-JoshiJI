@@ -1644,19 +1644,17 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                         .sum()
                         .to_dict()
                     )
-                    # print("========================================================")
-                    # print(f"{date=} {product=} {party=}")
-                    # print(sums)
 
 
                     # Join all elements to form a single string
                     narration = ", ".join(
                         "("
-                        + filtered_df3["Inv No."]
+                        + filtered_df3["Inv No."].astype(str)
                         + ", "
-                        + filtered_df3["Party/Cash Copy"]
+                        + filtered_df3["Party/Cash Copy"].astype(str)
                         + ")"
                     )
+
 
                     _temp_bill_counter = map_BillNo_to_partyCash.get(party)
                     if _temp_bill_counter is None:
