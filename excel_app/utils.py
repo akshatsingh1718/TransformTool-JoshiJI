@@ -734,7 +734,11 @@ class TransformExcelGST(BaseTransformExcel):
             else cls.get(row, "Party/Cash")
         )
 
-        qty = math.ceil(row[cls.column_to_idx["Qty"]]) if roundoff_qty else row[cls.column_to_idx["Qty"]]
+        qty = (
+            math.ceil(row[cls.column_to_idx["Qty"]])
+            if roundoff_qty
+            else row[cls.column_to_idx["Qty"]]
+        )
         new_row = cls.get_default_row_format(
             {
                 **{
@@ -794,10 +798,7 @@ class TransformExcelGST(BaseTransformExcel):
                 last_row = copy.deepcopy(row)
 
             new_tranformed_rows = cls.get_transformed_rows(
-                row,
-                bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}",
-                *args,
-                **kwargs
+                row, bill_no=f"{cls.bill_no_prefix}{bill_counter:05d}", *args, **kwargs
             )
 
             # if new rows added then only increase the bill counter
@@ -839,9 +840,18 @@ class TransformExcelJJOnly(BaseTransformExcel):
         qty = math.ceil(cls.get(row, "Qty"))
         amount = round(rate * qty, 2)
         discount = 0.0
+        ARTICLE_DESCRIPTION = cls.get(row, "Article Description").strip()
 
         cgst_sgst_per = gst_percentage / 2
 
+        # strictly ignore the rows which have paperback in their article description
+        if (
+            "JJ PaperBag kraft".lower() in ARTICLE_DESCRIPTION.lower()
+            or "ON PaperBag kraft".lower() in ARTICLE_DESCRIPTION.lower()
+        ):
+            return None
+
+        # if the amount is zero then dont include the row
         if amount == 0.0:
             return None
 
@@ -851,11 +861,8 @@ class TransformExcelJJOnly(BaseTransformExcel):
         inv_date = cls.get(row, "Inv Date").strftime(format="%d/%m/%Y")
 
         # party/cash
-        party_cash = (
-            cls.get(row, "Article Description").strip()
-            + " "
-            + cls.get(row, "EAN Number").strip()
-        )
+
+        party_cash = ARTICLE_DESCRIPTION + " " + cls.get(row, "EAN Number").strip()
 
         new_row = cls.get_default_row_format(
             {
@@ -909,7 +916,8 @@ class TransformExcelJJOnly(BaseTransformExcel):
                 row,
                 inv_no=f"{cls.bill_no_prefix}{_bill_counter:05d}",
             )
-            rows_to_df += new_tranformed_rows
+            if new_tranformed_rows is not None:
+                rows_to_df += new_tranformed_rows
 
         # File saving starts from here
         filename = cls.get_filename_with_datetime(prefix="JJOnly_")
@@ -1574,7 +1582,9 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         cls._gst_w_qty_transformation = TransformExcelGST(config, *args, **kwargs)
 
     def preprocess_df(cls, df: Union[str, pd.DataFrame]) -> pd.DataFrame:
-        return cls._gst_w_qty_transformation.transform(df, save=False, roundoff_qty=False)["df"]
+        return cls._gst_w_qty_transformation.transform(
+            df, save=False, roundoff_qty=False
+        )["df"]
 
     def transform(cls, df: str, save=True):
 
@@ -1584,7 +1594,8 @@ class GSTR1WQty_Extended(BaseTransformExcel):
         # sort the values
         df = df.sort_values(
             # by=["Inv Date", "Product's Name", "Party/Cash"], ascending=False
-            by=["Inv Date", "Product's Name", "Party/Cash"], ascending=True
+            by=["Inv Date", "Product's Name", "Party/Cash"],
+            ascending=True,
         )
 
         df = df if isinstance(df, pd.DataFrame) else pd.read_excel(df)
@@ -1638,13 +1649,19 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                     # Sum the int and float values
                     sums = (
                         # filtered_df3.select_dtypes(include=["int", "float"])
-                        filtered_df3[[
-                            "Qty", "Amount", "CGST Amt", "SGST Amt", "IGST Amt", "Total"
-                        ]]
+                        filtered_df3[
+                            [
+                                "Qty",
+                                "Amount",
+                                "CGST Amt",
+                                "SGST Amt",
+                                "IGST Amt",
+                                "Total",
+                            ]
+                        ]
                         .sum()
                         .to_dict()
                     )
-
 
                     # Join all elements to form a single string
                     narration = ", ".join(
@@ -1654,7 +1671,6 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                         + filtered_df3["Party/Cash Copy"].astype(str)
                         + ")"
                     )
-
 
                     _temp_bill_counter = map_BillNo_to_partyCash.get(party)
                     if _temp_bill_counter is None:
@@ -1671,7 +1687,7 @@ class GSTR1WQty_Extended(BaseTransformExcel):
                             **{
                                 s: filtered_df3[s].iloc[0]
                                 for s in [
-                                    "GST%",	
+                                    "GST%",
                                     "CGST %",
                                     "SGST %",
                                     "Rate",
